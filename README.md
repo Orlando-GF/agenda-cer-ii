@@ -27,6 +27,27 @@ Abra o endereço informado pelo Wrangler. No primeiro acesso, o sistema pedirá 
 
 ## Publicar na Cloudflare
 
+### Opção A: Cloudflare Pages pelo GitHub
+
+Ao conectar este repositório no Cloudflare Pages:
+
+- Root directory: deixe vazio ou `/`.
+- Build command: deixe vazio ou use `npm install`.
+- Build output directory: `public`.
+- Variáveis de ambiente: não precisa.
+
+O arquivo `wrangler.toml` já contém `pages_build_output_dir = "public"` e o binding `DB`.
+
+Antes do primeiro uso, aplique as migrações no D1 remoto:
+
+```powershell
+npm run db:remote
+```
+
+Depois faça o deploy pelo painel do Cloudflare Pages ou pelo push no GitHub.
+
+### Opção B: Wrangler pelo terminal
+
 1. Entre na conta da Cloudflare pelo terminal:
 
 ```powershell
