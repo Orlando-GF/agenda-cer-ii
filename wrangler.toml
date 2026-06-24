@@ -3,11 +3,6 @@ main = "src/index.ts"
 compatibility_date = "2026-06-22"
 pages_build_output_dir = "public"
 
-[assets]
-directory = "./public"
-binding = "ASSETS"
-not_found_handling = "single-page-application"
-
 [[d1_databases]]
 binding = "DB"
 database_name = "agenda-cer-ii"
