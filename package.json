@@ -1,0 +1,17 @@
+{
+  "name": "agenda-cer-ii",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 migrations apply agenda-cer-ii --local",
+    "db:remote": "wrangler d1 migrations apply agenda-cer-ii --remote",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260620.0",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.103.0"
+  }
+}

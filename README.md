@@ -1,0 +1,55 @@
+# Agenda CER II
+
+Sistema web simples para organização de agendas de profissionais e exames.
+
+## Recursos
+
+- Login com perfis de administrador e atendente.
+- Cadastro de profissionais, exames e usuários.
+- Agendas por data e turno, com horário em lista pronta e limite de vagas.
+- Agenda de consulta ou exame sempre vinculada a um profissional responsável.
+- Em agenda de exame, um paciente pode ter um ou vários exames marcados.
+- Tela principal com lista compacta agrupada por data, filtros de profissional, tipo, turno e situação.
+- Cadastro de paciente por prontuário, nome e observação.
+- Bloqueio de paciente repetido e de agenda lotada.
+- Impressão da lista de pacientes.
+- Desativação de cadastros sem perder o histórico.
+
+## Executar localmente
+
+```powershell
+npm install
+npm run db:local
+npm run dev
+```
+
+Abra o endereço informado pelo Wrangler. No primeiro acesso, o sistema pedirá a criação do administrador.
+
+## Publicar na Cloudflare
+
+1. Entre na conta da Cloudflare pelo terminal:
+
+```powershell
+npx wrangler login
+```
+
+2. Crie o banco:
+
+```powershell
+npx wrangler d1 create agenda-cer-ii
+```
+
+3. Copie o `database_id` exibido e substitua `COLOQUE_O_ID_DO_D1_AQUI` em `wrangler.toml`.
+
+4. Aplique a estrutura do banco e publique:
+
+```powershell
+npm run db:remote
+npm run deploy
+```
+
+## Observações
+
+- Não publique senhas ou dados de pacientes no repositório.
+- Use usuários individuais e senhas que não sejam compartilhadas.
+- Faça exportações/backup periódicos do D1.

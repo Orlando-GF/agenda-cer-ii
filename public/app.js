@@ -1,0 +1,357 @@
+(function(){
+  "use strict";
+  var state={user:null,needsSetup:false,professionals:[],services:[],currentSchedule:null,scheduleDirty:false};
+  var $=function(id){return document.getElementById(id)};
+  var esc=function(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]})};
+  var periodName={manha:"Manhã",tarde:"Tarde",noite:"Noite"};
+  var dateBr=function(v){if(!v)return"";var p=v.split("-");return p[2]+"/"+p[1]+"/"+p[0]};
+  var weekdayBr=function(v){var p=v.split("-"),d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));return ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"][d.getDay()]};
+  var kindLabel=function(kind){return kind==="exame"?'<span class="kind-badge exam">Exame</span>':'<span class="kind-badge consult">Consulta</span>'};
+  var periodLabel=function(period,time){return'<span class="period-badge '+esc(period)+'">'+esc(periodName[period]||period)+(time?" • "+esc(time):"")+'</span>'};
+  function today(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return d.getFullYear()+"-"+m+"-"+day}
+  function oneMonthAhead(){var d=new Date();d.setMonth(d.getMonth()+1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+  async function api(path,options){
+    options=options||{};options.headers=Object.assign({"content-type":"application/json"},options.headers||{});
+    var res=await fetch(path,options),data=await res.json().catch(function(){return{}});
+    if(!res.ok)throw new Error(data.error||"Não foi possível concluir.");
+    return data;
+  }
+  function toast(message,isError){var el=$("toast");el.textContent=message;el.className="toast show"+(isError?" error":"");setTimeout(function(){el.className="toast"},3200)}
+  function askConfirm(title,message,okText){
+    return new Promise(function(resolve){
+      $("confirm-title").textContent=title;$("confirm-message").textContent=message;$("confirm-ok").textContent=okText||"Confirmar";
+      var dialog=$("confirm-dialog");
+      dialog.onclose=function(){resolve(dialog.returnValue==="ok")};
+      dialog.showModal();
+    });
+  }
+  function go(page){
+    document.querySelectorAll(".page").forEach(function(el){el.classList.add("hidden")});
+    $("page-"+page).classList.remove("hidden");
+    document.querySelectorAll(".nav-item").forEach(function(el){el.classList.toggle("active",el.getAttribute("data-page")===page)});
+    $("sidebar").classList.remove("open");
+    if(page==="agenda")loadSchedules();
+    if(page==="professionals")loadProfessionals(true);
+    if(page==="services")loadServices(true);
+    if(page==="users")loadUsers();
+    if(page==="new-schedule")loadCatalogs();
+  }
+  async function start(){
+    $("filter-from").value=today();$("filter-to").value=oneMonthAhead();$("schedule-date").value=today();
+    try{
+      var data=await api("/api/status");
+      state.user=data.user;state.needsSetup=data.needsSetup;
+      if(data.user)showApp();else showAuth();
+    }catch(e){toast(e.message,true)}
+  }
+  function showAuth(){
+    $("auth-screen").classList.remove("hidden");$("app").classList.add("hidden");
+    $("name-field").classList.toggle("hidden",!state.needsSetup);
+    $("auth-subtitle").textContent=state.needsSetup?"Primeiro acesso: crie o usuário administrador.":"Entre para acessar as agendas.";
+    $("auth-form").querySelector("button").textContent=state.needsSetup?"Criar administrador":"Entrar";
+  }
+  function showApp(){
+    $("auth-screen").classList.add("hidden");$("app").classList.remove("hidden");
+    $("current-user").textContent=state.user.name;
+    document.querySelectorAll(".admin-only").forEach(function(el){el.classList.toggle("hidden",state.user.role!=="admin")});
+    go("agenda");
+  }
+  $("auth-form").addEventListener("submit",async function(e){
+    e.preventDefault();
+    try{
+      if(state.needsSetup){
+        await api("/api/setup",{method:"POST",body:JSON.stringify({name:$("setup-name").value,username:$("login-user").value,password:$("login-password").value})});
+        state.needsSetup=false;toast("Administrador criado. Agora faça o login.");showAuth();$("login-password").value="";
+      }else{
+        var data=await api("/api/login",{method:"POST",body:JSON.stringify({username:$("login-user").value,password:$("login-password").value})});
+        state.user=data.user;showApp();
+      }
+    }catch(err){toast(err.message,true)}
+  });
+  $("logout-button").addEventListener("click",async function(){await api("/api/logout",{method:"POST"});state.user=null;showAuth()});
+  $("menu-button").addEventListener("click",function(){$("sidebar").classList.toggle("open")});
+  document.addEventListener("click",function(e){
+    var page=e.target.getAttribute("data-page")||e.target.getAttribute("data-go");
+    if(page)go(page);
+    var close=e.target.getAttribute("data-close");if(close)$(close).close();
+  });
+  document.querySelectorAll(".nav-item").forEach(function(el){el.addEventListener("click",function(){go(el.getAttribute("data-page"))})});
+  $("filter-button").addEventListener("click",loadSchedules);
+  ["filter-professional","filter-kind","filter-period","filter-status","filter-view"].forEach(function(id){$(id).addEventListener("change",loadSchedules)});
+  $("schedule-dialog").addEventListener("close",function(){if(state.scheduleDirty){state.scheduleDirty=false;loadSchedules()}});
+  $("schedule-dialog").addEventListener("cancel",function(e){e.preventDefault();requestCloseSchedule()});
+  async function loadAgendaFilters(){
+    await loadProfessionals(false);
+    var current=$("filter-professional").value;
+    $("filter-professional").innerHTML='<option value="">Todos</option>'+state.professionals.filter(function(x){return x.active}).map(function(x){return'<option value="'+x.id+'">'+esc(x.name)+(x.specialty?" — "+esc(x.specialty):"")+'</option>'}).join("");
+    $("filter-professional").value=current;
+  }
+  async function loadSchedules(){
+    try{
+      await loadAgendaFilters();
+      var rows=await api("/api/schedules?from="+encodeURIComponent($("filter-from").value)+"&to="+encodeURIComponent($("filter-to").value)+"&status="+encodeURIComponent($("filter-status").value));
+      rows=rows.filter(function(s){
+        return (!$("filter-professional").value||String(s.professional_id)===$("filter-professional").value)&&(!$("filter-kind").value||s.kind===$("filter-kind").value)&&(!$("filter-period").value||s.period===$("filter-period").value);
+      });
+      $("schedule-list").classList.toggle("compact-list",$("filter-view").value==="list");
+      $("schedule-list").classList.toggle("schedule-grid",$("filter-view").value!=="list");
+      $("schedule-list").innerHTML=rows.length?($("filter-view").value==="list"?renderScheduleList(rows):renderScheduleCards(rows)):'<div class="empty-state card"><h3>Nenhuma agenda encontrada</h3><p>Ajuste os filtros ou crie uma nova agenda.</p></div>';
+      document.querySelectorAll("[data-schedule]").forEach(function(el){el.addEventListener("click",function(){openSchedule(Number(el.getAttribute("data-schedule")))})});
+    }catch(e){toast(e.message,true)}
+  }
+  function refreshSchedulesSoon(){
+    state.scheduleDirty=true;
+    window.clearTimeout(state.scheduleRefreshTimer);
+    state.scheduleRefreshTimer=window.setTimeout(function(){if(!$("page-agenda").classList.contains("hidden"))loadSchedules()},250);
+  }
+  function renderScheduleCards(rows){
+    return rows.map(function(s){
+        var occupied=Number(s.occupied),cap=Number(s.capacity),pct=Math.min(100,occupied/cap*100),title=s.professional_name||"Profissional não informado";
+        return '<button class="schedule-card '+(s.kind==="exame"?"exam ":"consult ")+(occupied>=cap?"full ":"")+(s.active?"" :"closed")+'" data-schedule="'+s.id+'"><span class="date">'+dateBr(s.schedule_date)+'</span>'+(s.active?"":'<span class="status off">Encerrada</span>')+'<div class="badge-line">'+kindLabel(s.kind)+periodLabel(s.period,s.time_label)+'</div><h3>'+esc(title)+'</h3><div class="capacity"><span style="width:'+pct+'%"></span></div><strong>'+occupied+' de '+cap+' vagas</strong></button>';
+      }).join("");
+  }
+  function renderScheduleList(rows){
+    var groups={};
+    rows.forEach(function(s){(groups[s.schedule_date]=groups[s.schedule_date]||[]).push(s)});
+    return Object.keys(groups).sort().map(function(date){
+      var items=groups[date].map(function(s){
+        var occupied=Number(s.occupied),cap=Number(s.capacity),pct=Math.min(100,occupied/cap*100);
+        return '<button class="agenda-row '+(s.kind==="exame"?"exam ":"consult ")+(s.active?"":"closed")+'" data-schedule="'+s.id+'"><span class="agenda-row-main"><strong>'+kindLabel(s.kind)+' '+periodLabel(s.period,s.time_label)+' '+esc(s.professional_name||"Profissional não informado")+'</strong></span><span class="agenda-progress"><span><i style="width:'+pct+'%"></i></span><strong>'+occupied+'/'+cap+' vagas</strong></span>'+(s.active?"":'<span class="status off">Encerrada</span>')+'</button>';
+      }).join("");
+      return '<section class="agenda-day card"><h3>'+dateBr(date)+' <span>'+weekdayBr(date)+'</span></h3><div class="agenda-day-list">'+items+'</div></section>';
+    }).join("");
+  }
+  async function loadCatalogs(){
+    await Promise.all([loadProfessionals(false),loadServices(false)]);
+    updateScheduleKind();
+    $("schedule-professional").innerHTML='<option value="">Selecione...</option>'+state.professionals.filter(function(x){return x.active}).map(function(x){return'<option value="'+x.id+'">'+esc(x.name)+(x.specialty?" — "+esc(x.specialty):"")+'</option>'}).join("");
+  }
+  $("schedule-kind").addEventListener("change",function(){
+    updateScheduleKind();
+  });
+  function updateScheduleKind(){
+    var first=$("professional-select-wrap").firstChild;
+    if(first)first.textContent=$("schedule-kind").value==="exame"?"Profissional responsável pelo exame":"Profissional da consulta";
+  }
+  $("schedule-form").addEventListener("submit",async function(e){
+    e.preventDefault();var kind=$("schedule-kind").value;
+    try{
+      await api("/api/schedules",{method:"POST",body:JSON.stringify({kind:kind,professional_id:$("schedule-professional").value,schedule_date:$("schedule-date").value,period:$("schedule-period").value,time_label:$("schedule-time").value,capacity:$("schedule-capacity").value,notes:$("schedule-notes").value})});
+      toast("Agenda criada.");this.reset();$("schedule-date").value=today();$("schedule-period").value="";$("schedule-capacity").value=20;updateScheduleKind();go("agenda");
+    }catch(err){toast(err.message,true)}
+  });
+  async function openSchedule(id){
+    try{
+      var data=await api("/api/schedules/"+id);state.currentSchedule=data;
+      var s=data.schedule,title=s.professional_name||"Profissional não informado",available=Number(s.capacity)-Number(s.occupied),isExam=s.kind==="exame",closed=!Number(s.active);
+      if(isExam&&!state.services.length)await loadServices(false);
+      var examHead=isExam?'<th class="col-exams">Exames</th>':'';
+      var tableClass=isExam?"slots-table exam-slots":"slots-table consultation-slots";
+      var colgroup=isExam?'<colgroup><col class="col-num"><col class="col-record"><col class="col-patient"><col class="col-exams"><col class="col-observation"><col class="col-actions"></colgroup>':'<colgroup><col class="col-num"><col class="col-record"><col class="col-patient"><col class="col-observation"><col class="col-actions"></colgroup>';
+      var bySlot={};data.appointments.forEach(function(a){bySlot[Number(a.slot_number)]=a});
+      var rows="";
+      for(var i=0;i<Number(s.capacity);i++){
+        var a=bySlot[i+1]||{},selected=(a.exams||[]).map(function(x){return x.id}),examCell=isExam?'<td class="slot-exams col-exams"><div class="exam-inline">'+examCheckboxes("slot-exam-"+i,selected)+'</div></td>':'';
+        rows+='<tr data-slot="'+i+'" data-appointment-id="'+(a.id||"")+'"><td class="slot-number col-num">'+(i+1)+'</td><td class="col-record"><input class="slot-record" value="'+esc(a.record_number||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td><td class="col-patient"><input class="slot-name" value="'+esc(a.patient_name||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td>'+examCell+'<td class="col-observation"><input class="slot-observation" value="'+esc(a.observation||"")+'" '+(closed?"disabled":"")+'></td><td class="no-print slot-actions col-actions">'+(closed?'<span class="muted">Encerrada</span>':'<span class="slot-save-status"></span>'+(a.id?'<button class="table-action clear-slot delete-appointment" title="Limpar vaga" aria-label="Limpar vaga" data-id="'+a.id+'">🧹</button>':''))+'</td></tr>';
+      }
+      $("schedule-detail").innerHTML='<div class="dialog-body"><div class="dialog-header"><div><h2>'+esc(title)+' '+(closed?'<span class="status off">Encerrada</span>':'')+' <button class="icon-button no-print" id="edit-schedule" title="Editar dados da agenda" aria-label="Editar dados da agenda">✏️</button></h2><p><span class="badge-line">'+kindLabel(s.kind)+periodLabel(s.period,s.time_label)+'</span> '+dateBr(s.schedule_date)+'</p></div><button class="close-button no-print" id="close-schedule" type="button">×</button></div><div class="detail-summary"><div class="summary-box"><strong>'+s.occupied+'</strong> agendados</div><div class="summary-box"><strong>'+available+'</strong> vagas disponíveis</div><button class="secondary no-print" id="print-button">Imprimir</button><button class="'+(closed?"primary":"danger")+' no-print" id="toggle-schedule">'+(closed?"Reativar agenda":"Encerrar agenda")+'</button></div><h3>Vagas da agenda</h3><p class="muted no-print">'+(closed?"Esta agenda está encerrada. Reative para editar as vagas.":"Preencha direto na linha da vaga. As alterações são salvas automaticamente.")+'</p><div class="table-wrap slots-wrap"><table class="'+tableClass+'">'+colgroup+'<thead><tr><th class="col-num">#</th><th class="col-record">Prontuário</th><th class="col-patient">Paciente</th>'+examHead+'<th class="col-observation">Observação</th><th class="no-print col-actions"></th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="print-only">Impresso em '+new Date().toLocaleString("pt-BR")+'</p></div>';
+      if(!$("schedule-dialog").open)$("schedule-dialog").showModal();
+      $("close-schedule").onclick=requestCloseSchedule;
+      $("print-button").onclick=printSchedule;
+      $("edit-schedule").onclick=openEditSchedule;
+      $("toggle-schedule").onclick=async function(){await toggleSchedule(s.id,closed)};
+      document.querySelectorAll(".slot-record").forEach(function(el){el.addEventListener("blur",async function(e){await fillPatientRow(e);autoSaveSlot(e.target)})});
+      document.querySelectorAll(".slot-name,.slot-observation").forEach(function(el){el.addEventListener("blur",function(e){autoSaveSlot(e.target)})});
+      document.querySelectorAll(".slot-exams input[type=checkbox]").forEach(function(el){el.addEventListener("change",function(e){autoSaveSlot(e.target)})});
+      document.querySelectorAll(".delete-appointment").forEach(function(el){el.onclick=function(){removeAppointment(Number(el.getAttribute("data-id")))}}); 
+    }catch(e){toast(e.message,true)}
+  }
+  function examCheckboxes(name,selected){
+    selected=selected||[];
+    var selectedMap={};selected.forEach(function(id){selectedMap[String(id)]=true});
+    var active=state.services.filter(function(x){return x.active||selectedMap[String(x.id)]});
+    if(!active.length)return'<p class="muted">Cadastre os exames antes de agendar pacientes.</p>';
+    var disabled=state.currentSchedule&&Number(state.currentSchedule.schedule.active)===0;
+    return active.map(function(x){return'<label class="check-row"><input type="checkbox" name="'+name+'" value="'+x.id+'" '+(selectedMap[String(x.id)]?"checked":"")+' '+(disabled?"disabled":"")+'> '+esc(x.name)+'</label>'}).join("");
+  }
+  function selectedExamIds(name){
+    return Array.from(document.querySelectorAll('input[name="'+name+'"]:checked')).map(function(el){return Number(el.value)});
+  }
+  function pendingUnsavedRows(){
+    if(!state.currentSchedule||state.currentSchedule.schedule.kind!=="exame")return [];
+    return Array.from(document.querySelectorAll("#schedule-dialog tbody tr")).filter(function(row){
+      var record=row.querySelector(".slot-record").value.trim();
+      var name=row.querySelector(".slot-name").value.trim();
+      var index=Number(row.getAttribute("data-slot"));
+      return (record||name)&&!selectedExamIds("slot-exam-"+index).length;
+    });
+  }
+  async function requestCloseSchedule(){
+    var pending=pendingUnsavedRows();
+    if(pending.length){
+      pending.forEach(function(row){markSlotSaving(row,"Marque exame",true)});
+      var ok=await askConfirm("Paciente não salvo","Existe paciente preenchido sem exame marcado. Se fechar agora, essa vaga não será salva.","Fechar sem salvar");
+      if(!ok)return;
+    }
+    $("schedule-dialog").close();
+  }
+  async function printSchedule(){
+    if(!state.currentSchedule){toast("Abra uma agenda para imprimir.",true);return}
+    var pending=pendingUnsavedRows();
+    if(pending.length){
+      pending.forEach(function(row){markSlotSaving(row,"Marque exame",true)});
+      toast("Marque o exame antes de imprimir.",true);
+      return;
+    }
+    window.location.href="/print/schedule/"+state.currentSchedule.schedule.id;
+  }
+  async function fillPatientRow(e){
+    var row=e.target.closest("tr"),q=e.target.value.trim();if(!row||!q)return;
+    try{var list=await api("/api/patients/search?q="+encodeURIComponent(q));var exact=list.find(function(x){return x.record_number.toLowerCase()===q.toLowerCase()});if(exact)row.querySelector(".slot-name").value=exact.name}catch(err){}
+  }
+  function autoSaveSlot(el){
+    var row=el.closest("tr");if(!row)return;
+    var record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim();
+    if(!record&&!name)return;
+    saveSlot(Number(row.getAttribute("data-slot")),{silent:true,refresh:false});
+  }
+  function markSlotSaving(row,text,isError){
+    var status=row.querySelector(".slot-save-status");if(!status)return;
+    status.textContent=text;
+    status.classList.toggle("slot-save-error",!!isError);
+  }
+  function markSlotSaved(row){
+    markSlotSaving(row,"Salvo",false);
+    window.setTimeout(function(){var status=row.querySelector(".slot-save-status");if(status)status.textContent=""},1200);
+  }
+  function addClearButton(row,id){
+    if(row.querySelector(".delete-appointment"))return;
+    var actions=row.querySelector(".slot-actions");
+    if(!actions)return;
+    var btn=document.createElement("button");
+    btn.className="table-action clear-slot delete-appointment";
+    btn.type="button";
+    btn.title="Limpar vaga";
+    btn.setAttribute("aria-label","Limpar vaga");
+    btn.setAttribute("data-id",id);
+    btn.textContent="🧹";
+    btn.onclick=function(){removeAppointment(Number(id))};
+    actions.appendChild(btn);
+  }
+  async function saveSlot(index,options){
+    options=options||{};
+    var row=document.querySelector('tr[data-slot="'+index+'"]');if(!row)return;
+    var id=row.getAttribute("data-appointment-id"),record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim(),observation=row.querySelector(".slot-observation").value.trim();
+    if(!record||!name){if(!options.silent)toast("Informe prontuário e nome do paciente.",true);else markSlotSaving(row,"Falta dados",true);return}
+    var examIds=selectedExamIds("slot-exam-"+index);
+    if(state.currentSchedule.schedule.kind==="exame"&&!examIds.length){if(!options.silent)toast("Marque pelo menos um exame para este paciente.",true);else markSlotSaving(row,"Marque exame",true);return}
+    var payload={schedule_id:state.currentSchedule.schedule.id,slot_number:index+1,record_number:record,patient_name:name,observation:observation,exam_ids:examIds};
+    markSlotSaving(row,"Salvando...",false);
+    try{
+      if(id)await api("/api/appointments/"+id,{method:"PATCH",body:JSON.stringify(payload)});
+      else{var created=await api("/api/appointments",{method:"POST",body:JSON.stringify(payload)});row.setAttribute("data-appointment-id",created.id);addClearButton(row,created.id)}
+      markSlotSaved(row);
+      refreshSchedulesSoon();
+      if(!options.silent)toast("Vaga salva.");
+      if(options.refresh!==false)openSchedule(state.currentSchedule.schedule.id);
+    }catch(err){markSlotSaving(row,"Erro",true);if(!options.silent)toast(err.message,true)}
+  }
+  function editAppointment(id){
+    var a=state.currentSchedule.appointments.find(function(x){return Number(x.id)===id});if(!a)return;
+    $("edit-appointment-id").value=id;$("edit-record").value=a.record_number;$("edit-patient-name").value=a.patient_name;$("edit-observation").value=a.observation||"";$("edit-dialog").showModal();
+    var isExam=state.currentSchedule.schedule.kind==="exame";
+    $("edit-exams-wrap").classList.toggle("hidden",!isExam);
+    if(isExam)$("edit-exams-wrap").innerHTML='<strong>Exames do paciente</strong><div>'+examCheckboxes("edit-exam",(a.exams||[]).map(function(x){return x.id}))+'</div>';
+  }
+  $("edit-appointment-form").addEventListener("submit",async function(e){
+    e.preventDefault();
+    try{await api("/api/appointments/"+$("edit-appointment-id").value,{method:"PATCH",body:JSON.stringify({record_number:$("edit-record").value,patient_name:$("edit-patient-name").value,observation:$("edit-observation").value,exam_ids:selectedExamIds("edit-exam")})});$("edit-dialog").close();toast("Paciente atualizado.");openSchedule(state.currentSchedule.schedule.id)}catch(err){toast(err.message,true)}
+  });
+  async function removeAppointment(id){if(!await askConfirm("Limpar vaga","Remover este paciente desta vaga?","Limpar"))return;try{await api("/api/appointments/"+id,{method:"DELETE"});toast("Vaga limpa.");refreshSchedulesSoon();openSchedule(state.currentSchedule.schedule.id)}catch(e){toast(e.message,true)}}
+  async function toggleSchedule(id,isClosed){
+    if(isClosed){
+      if(!await askConfirm("Reativar agenda","Esta agenda voltará para a lista de agendas ativas e poderá ser editada.","Reativar"))return;
+      try{await api("/api/schedules/"+id,{method:"PATCH",body:JSON.stringify({active:true})});toast("Agenda reativada.");openSchedule(id);loadSchedules()}catch(e){toast(e.message,true)}
+    }else{
+      if(!await askConfirm("Encerrar agenda","Esta agenda deixará de aparecer na lista de ativas, mas poderá ser vista em Encerradas.","Encerrar"))return;
+      try{await api("/api/schedules/"+id,{method:"DELETE"});toast("Agenda encerrada.");openSchedule(id);loadSchedules()}catch(e){toast(e.message,true)}
+    }
+  }
+  async function openEditSchedule(){
+    if(!state.currentSchedule)return;
+    var s=state.currentSchedule.schedule;
+    await loadProfessionals(false);
+    $("schedule-edit-professional").innerHTML='<option value="">Selecione...</option>'+state.professionals.filter(function(x){return x.active||Number(x.id)===Number(s.professional_id)}).map(function(x){return'<option value="'+x.id+'">'+esc(x.name)+(x.specialty?" — "+esc(x.specialty):"")+'</option>'}).join("");
+    $("schedule-edit-id").value=s.id;
+    $("schedule-edit-kind").value=s.kind;
+    $("schedule-edit-professional").value=s.professional_id||"";
+    $("schedule-edit-date").value=s.schedule_date;
+    $("schedule-edit-period").value=s.period;
+    $("schedule-edit-time").value=s.time_label||"";
+    $("schedule-edit-capacity").value=s.capacity;
+    $("schedule-edit-notes").value=s.notes||"";
+    updateEditScheduleKind();
+    $("schedule-edit-dialog").showModal();
+  }
+  function updateEditScheduleKind(){
+    var first=$("schedule-edit-professional-wrap").firstChild;
+    if(first)first.textContent=$("schedule-edit-kind").value==="exame"?"Profissional responsável pelo exame":"Profissional da consulta";
+  }
+  $("schedule-edit-kind").addEventListener("change",updateEditScheduleKind);
+  $("schedule-edit-form").addEventListener("submit",async function(e){
+    e.preventDefault();
+    var id=$("schedule-edit-id").value;
+    try{
+      await api("/api/schedules/"+id,{method:"PATCH",body:JSON.stringify({kind:$("schedule-edit-kind").value,professional_id:$("schedule-edit-professional").value,schedule_date:$("schedule-edit-date").value,period:$("schedule-edit-period").value,time_label:$("schedule-edit-time").value,capacity:$("schedule-edit-capacity").value,notes:$("schedule-edit-notes").value})});
+      $("schedule-edit-dialog").close();
+      toast("Agenda atualizada.");
+      openSchedule(Number(id));
+      loadSchedules();
+    }catch(err){toast(err.message,true)}
+  });
+  async function loadProfessionals(render){
+    try{state.professionals=await api("/api/professionals");if(render)$("professional-list").innerHTML=tableCatalog(state.professionals,"professional")}catch(e){toast(e.message,true)}
+  }
+  async function loadServices(render){
+    try{state.services=await api("/api/services");if(render)$("service-list").innerHTML=tableCatalog(state.services,"service")}catch(e){toast(e.message,true)}
+  }
+  function tableCatalog(rows,type){
+    if(!rows.length)return"<p>Nenhum cadastro ainda.</p>";
+    if(type==="service")return'<table><thead><tr><th>Nome</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action edit-catalog" data-type="'+type+'" data-id="'+x.id+'">Editar</button><button class="table-action toggle-catalog" data-type="'+type+'" data-id="'+x.id+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
+    return'<table><thead><tr><th>Nome</th><th>Especialidade</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.specialty)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action edit-catalog" data-type="'+type+'" data-id="'+x.id+'">Editar</button><button class="table-action toggle-catalog" data-type="'+type+'" data-id="'+x.id+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
+  }
+  $("professional-form").addEventListener("submit",async function(e){e.preventDefault();try{await api("/api/professionals",{method:"POST",body:JSON.stringify({name:$("professional-name").value,specialty:$("professional-specialty").value})});this.reset();toast("Profissional cadastrado.");loadProfessionals(true)}catch(err){toast(err.message,true)}});
+  $("service-form").addEventListener("submit",async function(e){e.preventDefault();try{await api("/api/services",{method:"POST",body:JSON.stringify({name:$("service-name").value})});this.reset();toast("Exame cadastrado.");loadServices(true)}catch(err){toast(err.message,true)}});
+  document.addEventListener("click",async function(e){
+    if(!e.target.classList.contains("toggle-catalog"))return;
+    var type=e.target.getAttribute("data-type"),id=e.target.getAttribute("data-id"),active=e.target.getAttribute("data-active")==="1",rows=type==="professional"?state.professionals:state.services,x=rows.find(function(r){return String(r.id)===id});
+    if(!x)return;var payload={name:x.name,active:!active};if(type==="professional")payload.specialty=x.specialty;
+    try{await api("/api/"+(type==="professional"?"professionals":"services")+"/"+id,{method:"PATCH",body:JSON.stringify(payload)});toast(active?"Cadastro desativado.":"Cadastro ativado.");type==="professional"?loadProfessionals(true):loadServices(true)}catch(err){toast(err.message,true)}
+  });
+  document.addEventListener("click",async function(e){
+    if(!e.target.classList.contains("edit-catalog"))return;
+    var type=e.target.getAttribute("data-type"),id=e.target.getAttribute("data-id"),rows=type==="professional"?state.professionals:state.services,x=rows.find(function(r){return String(r.id)===id});
+    if(!x)return;
+    $("catalog-dialog-title").textContent=type==="professional"?"Editar profissional":"Editar exame";
+    $("catalog-edit-type").value=type;$("catalog-edit-id").value=id;$("catalog-edit-name").value=x.name;
+    $("catalog-specialty-wrap").classList.toggle("hidden",type!=="professional");
+    $("catalog-edit-specialty").value=x.specialty||"";
+    $("catalog-dialog").showModal();
+  });
+  $("catalog-edit-form").addEventListener("submit",async function(e){
+    e.preventDefault();
+    var type=$("catalog-edit-type").value,id=$("catalog-edit-id").value,rows=type==="professional"?state.professionals:state.services,x=rows.find(function(r){return String(r.id)===id});
+    if(!x)return;
+    var payload={name:$("catalog-edit-name").value.trim(),active:!!x.active};
+    if(!payload.name){toast("Informe o nome.",true);return}
+    if(type==="professional")payload.specialty=$("catalog-edit-specialty").value.trim();
+    try{await api("/api/"+(type==="professional"?"professionals":"services")+"/"+id,{method:"PATCH",body:JSON.stringify(payload)});$("catalog-dialog").close();toast("Cadastro atualizado.");type==="professional"?loadProfessionals(true):loadServices(true)}catch(err){toast(err.message,true)}
+  });
+  async function loadUsers(){
+    if(state.user.role!=="admin")return;
+    try{var rows=await api("/api/users");$("user-list").innerHTML=rows.length?'<table><thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.username)+'</td><td>'+esc(x.role==="admin"?"Administrador":"Atendente")+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action toggle-user" data-id="'+x.id+'" data-name="'+esc(x.name)+'" data-role="'+x.role+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>':"<p>Nenhum usuário.</p>"}catch(e){toast(e.message,true)}
+  }
+  $("user-form").addEventListener("submit",async function(e){e.preventDefault();try{await api("/api/users",{method:"POST",body:JSON.stringify({name:$("user-name").value,username:$("user-username").value,password:$("user-password").value,role:$("user-role").value})});this.reset();toast("Usuário cadastrado.");loadUsers()}catch(err){toast(err.message,true)}});
+  document.addEventListener("click",async function(e){if(!e.target.classList.contains("toggle-user"))return;try{await api("/api/users/"+e.target.getAttribute("data-id"),{method:"PATCH",body:JSON.stringify({name:e.target.getAttribute("data-name"),role:e.target.getAttribute("data-role"),active:e.target.getAttribute("data-active")!=="1"})});toast("Usuário atualizado.");loadUsers()}catch(err){toast(err.message,true)}});
+  start();
+})();

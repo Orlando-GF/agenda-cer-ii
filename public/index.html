@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#176b5b">
+  <title>Agenda CER II</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="toast" class="toast" role="status"></div>
+
+  <main id="auth-screen" class="auth-screen">
+    <form id="auth-form" class="auth-card">
+      <h1>CER II</h1>
+      <p id="auth-subtitle">Entre para acessar as agendas.</p>
+      <label id="name-field" class="hidden">Seu nome
+        <input id="setup-name" autocomplete="name">
+      </label>
+      <label>Usuário
+        <input id="login-user" autocomplete="username" required>
+      </label>
+      <label>Senha
+        <input id="login-password" type="password" autocomplete="current-password" required minlength="6">
+      </label>
+      <button class="primary wide" type="submit">Entrar</button>
+    </form>
+  </main>
+
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <button class="menu-button" id="menu-button" aria-label="Abrir menu">☰</button>
+      <div>
+        <strong>Agenda CER II</strong>
+        <small>Organização de consultas e exames</small>
+      </div>
+      <div class="user-box">
+        <span id="current-user"></span>
+        <button id="logout-button" class="link-button">Sair</button>
+      </div>
+    </header>
+
+    <aside id="sidebar" class="sidebar">
+      <nav>
+        <button data-page="agenda" class="nav-item active"><span class="nav-icon">📅</span><span>Agenda</span></button>
+        <button data-page="new-schedule" class="nav-item"><span class="nav-icon">＋</span><span>Nova agenda</span></button>
+        <button data-page="professionals" class="nav-item"><span class="nav-icon">🩺</span><span>Profissionais</span></button>
+        <button data-page="services" class="nav-item"><span class="nav-icon">🧪</span><span>Exames</span></button>
+        <button data-page="users" class="nav-item admin-only"><span class="nav-icon">👤</span><span>Usuários</span></button>
+      </nav>
+    </aside>
+
+    <section class="content">
+      <div id="page-agenda" class="page">
+        <div class="page-heading">
+          <div><h2>Agendas</h2><p>Escolha um período para visualizar.</p></div>
+          <button class="primary" data-go="new-schedule">＋ Nova agenda</button>
+        </div>
+        <div class="filters card">
+          <label>De <input type="date" id="filter-from"></label>
+          <label>Até <input type="date" id="filter-to"></label>
+          <label>Profissional
+            <select id="filter-professional">
+              <option value="">Todos</option>
+            </select>
+          </label>
+          <label>Tipo
+            <select id="filter-kind">
+              <option value="">Todos</option>
+              <option value="profissional">Consulta</option>
+              <option value="exame">Exame</option>
+            </select>
+          </label>
+          <label>Turno
+            <select id="filter-period">
+              <option value="">Todos</option>
+              <option value="manha">Manhã</option>
+              <option value="tarde">Tarde</option>
+              <option value="noite">Noite</option>
+            </select>
+          </label>
+          <label>Situação
+            <select id="filter-status">
+              <option value="active">Ativas</option>
+              <option value="closed">Encerradas</option>
+              <option value="all">Todas</option>
+            </select>
+          </label>
+          <label>Visualização
+            <select id="filter-view">
+              <option value="list">Lista compacta</option>
+              <option value="cards">Cards</option>
+            </select>
+          </label>
+          <button class="secondary" id="filter-button">Buscar</button>
+        </div>
+        <div id="schedule-list" class="schedule-grid"></div>
+      </div>
+
+      <div id="page-new-schedule" class="page hidden">
+        <div class="page-heading"><div><h2>Nova agenda</h2><p>Escolha se a agenda será para consulta ou exame.</p></div></div>
+        <form id="schedule-form" class="card form-grid">
+          <label>Tipo de agenda
+            <select id="schedule-kind"><option value="profissional">Consulta</option><option value="exame">Exame</option></select>
+          </label>
+          <label id="professional-select-wrap">Profissional da consulta
+            <select id="schedule-professional" required></select>
+          </label>
+          <label>Data <input id="schedule-date" type="date" required></label>
+          <label>Turno
+            <select id="schedule-period" required>
+              <option value="">Selecione...</option>
+              <option value="manha">Manhã</option><option value="tarde">Tarde</option>
+              <option value="noite">Noite</option>
+            </select>
+          </label>
+          <label>Horário
+            <select id="schedule-time">
+              <option value="">Sem horário específico</option>
+              <option value="07:00">07:00</option>
+              <option value="08:00">08:00</option>
+              <option value="09:00">09:00</option>
+              <option value="10:00">10:00</option>
+              <option value="11:00">11:00</option>
+              <option value="13:00">13:00</option>
+              <option value="14:00">14:00</option>
+              <option value="15:00">15:00</option>
+              <option value="16:00">16:00</option>
+              <option value="17:00">17:00</option>
+              <option value="18:00">18:00</option>
+              <option value="19:00">19:00</option>
+            </select>
+          </label>
+          <label>Quantidade de vagas <input id="schedule-capacity" type="number" min="1" value="20" required></label>
+          <label class="full">Observação da agenda <textarea id="schedule-notes" rows="2"></textarea></label>
+          <div class="form-actions full"><button type="button" class="secondary" data-go="agenda">Cancelar</button><button class="primary">Salvar agenda</button></div>
+        </form>
+      </div>
+
+      <div id="page-professionals" class="page hidden">
+        <div class="page-heading"><div><h2>Profissionais</h2><p>Cadastre novos profissionais ou desative quem não atende mais.</p></div></div>
+        <form id="professional-form" class="card inline-form">
+          <label>Nome <input id="professional-name" required></label>
+          <label>Especialidade <input id="professional-specialty"></label>
+          <button class="primary">Cadastrar</button>
+        </form>
+        <div id="professional-list" class="card table-wrap"></div>
+      </div>
+
+      <div id="page-services" class="page hidden">
+        <div class="page-heading"><div><h2>Exames</h2><p>Cadastre os exames que possuem agenda própria.</p></div></div>
+        <form id="service-form" class="card inline-form">
+          <label>Nome <input id="service-name" required></label>
+          <button class="primary">Cadastrar</button>
+        </form>
+        <div id="service-list" class="card table-wrap"></div>
+      </div>
+
+      <div id="page-users" class="page hidden">
+        <div class="page-heading"><div><h2>Usuários</h2><p>Pessoas que podem acessar o sistema.</p></div></div>
+        <form id="user-form" class="card form-grid">
+          <label>Nome <input id="user-name" required></label>
+          <label>Usuário <input id="user-username" required></label>
+          <label>Senha inicial <input id="user-password" type="password" minlength="6" required></label>
+          <label>Perfil <select id="user-role"><option value="atendente">Atendente</option><option value="admin">Administrador</option></select></label>
+          <div class="form-actions full"><button class="primary">Cadastrar usuário</button></div>
+        </form>
+        <div id="user-list" class="card table-wrap"></div>
+      </div>
+    </section>
+  </div>
+
+  <dialog id="schedule-dialog" class="dialog">
+    <div id="schedule-detail"></div>
+  </dialog>
+
+  <dialog id="schedule-edit-dialog" class="dialog small-dialog">
+    <form id="schedule-edit-form">
+      <h3>Editar agenda</h3>
+      <input id="schedule-edit-id" type="hidden">
+      <label>Tipo de agenda
+        <select id="schedule-edit-kind"><option value="profissional">Consulta</option><option value="exame">Exame</option></select>
+      </label>
+      <label id="schedule-edit-professional-wrap">Profissional
+        <select id="schedule-edit-professional" required></select>
+      </label>
+      <label>Data <input id="schedule-edit-date" type="date" required></label>
+      <label>Turno
+        <select id="schedule-edit-period" required>
+          <option value="">Selecione...</option>
+          <option value="manha">Manhã</option><option value="tarde">Tarde</option>
+          <option value="noite">Noite</option>
+        </select>
+      </label>
+      <label>Horário
+        <select id="schedule-edit-time">
+          <option value="">Sem horário específico</option>
+          <option value="07:00">07:00</option>
+          <option value="08:00">08:00</option>
+          <option value="09:00">09:00</option>
+          <option value="10:00">10:00</option>
+          <option value="11:00">11:00</option>
+          <option value="13:00">13:00</option>
+          <option value="14:00">14:00</option>
+          <option value="15:00">15:00</option>
+          <option value="16:00">16:00</option>
+          <option value="17:00">17:00</option>
+          <option value="18:00">18:00</option>
+          <option value="19:00">19:00</option>
+        </select>
+      </label>
+      <label>Quantidade de vagas <input id="schedule-edit-capacity" type="number" min="1" required></label>
+      <label>Observação <textarea id="schedule-edit-notes" rows="3"></textarea></label>
+      <div class="form-actions"><button type="button" class="secondary" data-close="schedule-edit-dialog">Cancelar</button><button class="primary">Salvar</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="edit-dialog" class="dialog small-dialog">
+    <form id="edit-appointment-form">
+      <h3>Editar paciente</h3>
+      <input id="edit-appointment-id" type="hidden">
+      <label>Prontuário <input id="edit-record" required></label>
+      <label>Nome <input id="edit-patient-name" required></label>
+      <div id="edit-exams-wrap" class="exam-picker hidden"></div>
+      <label>Observação <textarea id="edit-observation" rows="3"></textarea></label>
+      <div class="form-actions"><button type="button" class="secondary" data-close="edit-dialog">Cancelar</button><button class="primary">Salvar</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="catalog-dialog" class="dialog small-dialog">
+    <form id="catalog-edit-form">
+      <h3 id="catalog-dialog-title">Editar cadastro</h3>
+      <input id="catalog-edit-type" type="hidden">
+      <input id="catalog-edit-id" type="hidden">
+      <label>Nome <input id="catalog-edit-name" required></label>
+      <label id="catalog-specialty-wrap">Especialidade <input id="catalog-edit-specialty"></label>
+      <div class="form-actions"><button type="button" class="secondary" data-close="catalog-dialog">Cancelar</button><button class="primary">Salvar</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="confirm-dialog" class="dialog small-dialog">
+    <form method="dialog">
+      <h3 id="confirm-title">Confirmar ação</h3>
+      <p id="confirm-message"></p>
+      <div class="form-actions">
+        <button id="confirm-cancel" value="cancel" class="secondary">Cancelar</button>
+        <button id="confirm-ok" value="ok" class="danger">Confirmar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+name = "agenda-cer-ii"
+main = "src/index.ts"
+compatibility_date = "2026-06-22"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agenda-cer-ii"
+database_id = "8f03d896-eff5-4614-b98f-7626f66b106b"
+migrations_dir = "migrations"
