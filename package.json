@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "db:local": "wrangler d1 migrations apply agenda-cer-ii --local",
-    "db:remote": "wrangler d1 migrations apply agenda-cer-ii --remote",
+    "db:local": "wrangler d1 migrations apply ceproeste --local",
+    "db:remote": "wrangler d1 migrations apply ceproeste --remote",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

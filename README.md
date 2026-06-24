@@ -57,7 +57,7 @@ npx wrangler login
 2. Crie o banco:
 
 ```powershell
-npx wrangler d1 create agenda-cer-ii
+npx wrangler d1 create ceproeste
 ```
 
 3. Copie o `database_id` exibido e substitua `COLOQUE_O_ID_DO_D1_AQUI` em `wrangler.toml`.

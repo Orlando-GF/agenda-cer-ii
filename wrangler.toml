@@ -4,6 +4,6 @@ pages_build_output_dir = "public"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "agenda-cer-ii"
+database_name = "ceproeste"
 database_id = "8f03d896-eff5-4614-b98f-7626f66b106b"
 migrations_dir = "migrations"
