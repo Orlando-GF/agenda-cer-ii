@@ -62,6 +62,12 @@ th,td{padding:9px 8px}
 .clear-slot:hover{background:#f8e5e5!important;color:var(--red)!important}
 .slot-save-status{min-width:0;color:var(--muted);font-size:12px}
 .slot-save-status.slot-save-error{color:var(--red)}
+/* Organização geral das páginas: conteúdo centralizado e componentes consistentes */
+.content{max-width:none;padding-left:clamp(20px,2.4vw,42px);padding-right:clamp(20px,2.4vw,42px)}
+.page{width:min(100%,1440px);margin:0 auto}
+.form-grid,.inline-form{max-width:900px;margin-left:auto;margin-right:auto}
+#page-agenda .filters{max-width:none;margin-left:0;margin-right:0}
+#page-professionals .table-wrap,#page-services .table-wrap,#page-users .table-wrap{width:100%}
 @media(max-width:800px){.menu-button{display:block}.sidebar{transform:translateX(-100%);transition:.2s;z-index:15}.sidebar.open{transform:none}.content{margin-left:0;padding:90px 16px 40px}.user-box span{display:none}.form-grid{grid-template-columns:1fr}.full{grid-column:auto}.filters,.inline-form{align-items:stretch;flex-direction:column}.filters label{min-width:0}.appointment-form{grid-template-columns:1fr}.page-heading{align-items:flex-start}.page-heading .primary{white-space:nowrap}}
 @media print{body{background:#fff}.topbar,.sidebar,.content,.dialog-header button,.appointment-form,.no-print,.toast{display:none!important}.dialog{position:static!important;width:100%;max-height:none;box-shadow:none}.dialog::backdrop{display:none}.dialog-body{padding:0}.print-only{display:block}table{font-size:12px}th,td{padding:7px}.dialog-header{border:0}}
 
