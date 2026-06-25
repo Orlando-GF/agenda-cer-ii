@@ -158,10 +158,10 @@
 
       <div id="page-users" class="page hidden">
         <div class="page-heading"><div><h2>Usuários</h2><p>Pessoas que podem acessar o sistema.</p></div></div>
-        <form id="user-form" class="card form-grid">
-          <label>Nome <input id="user-name" required></label>
-          <label>Usuário <input id="user-username" required></label>
-          <label>Senha inicial <input id="user-password" type="password" minlength="6" required></label>
+        <form id="user-form" class="card form-grid" autocomplete="off">
+          <label>Nome <input id="user-name" name="new-user-full-name" autocomplete="off" required></label>
+          <label>Usuário <input id="user-username" name="new-user-login" autocomplete="off" required></label>
+          <label>Senha inicial <input id="user-password" name="new-user-password" type="password" autocomplete="new-password" minlength="6" required></label>
           <label>Perfil <select id="user-role"><option value="atendente">Atendente</option><option value="admin">Administrador</option></select></label>
           <div class="form-actions full"><button class="primary">Cadastrar usuário</button></div>
         </form>

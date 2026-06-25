@@ -33,7 +33,7 @@
     if(page==="agenda")loadSchedules();
     if(page==="professionals")loadProfessionals(true);
     if(page==="services")loadServices(true);
-    if(page==="users")loadUsers();
+    if(page==="users"){clearUserForm();loadUsers()}
     if(page==="new-schedule")loadCatalogs();
   }
   async function start(){
@@ -350,6 +350,19 @@
   async function loadUsers(){
     if(state.user.role!=="admin")return;
     try{var rows=await api("/api/users");$("user-list").innerHTML=rows.length?'<table><thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.username)+'</td><td>'+esc(x.role==="admin"?"Administrador":"Atendente")+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action toggle-user" data-id="'+x.id+'" data-name="'+esc(x.name)+'" data-role="'+x.role+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>':"<p>Nenhum usuário.</p>"}catch(e){toast(e.message,true)}
+  }
+  function clearUserForm(){
+    if(!$("user-form"))return;
+    $("user-form").reset();
+    $("user-name").value="";
+    $("user-username").value="";
+    $("user-password").value="";
+    $("user-role").value="atendente";
+    setTimeout(function(){
+      $("user-name").value="";
+      $("user-username").value="";
+      $("user-password").value="";
+    },100);
   }
   $("user-form").addEventListener("submit",async function(e){e.preventDefault();try{await api("/api/users",{method:"POST",body:JSON.stringify({name:$("user-name").value,username:$("user-username").value,password:$("user-password").value,role:$("user-role").value})});this.reset();toast("Usuário cadastrado.");loadUsers()}catch(err){toast(err.message,true)}});
   document.addEventListener("click",async function(e){if(!e.target.classList.contains("toggle-user"))return;try{await api("/api/users/"+e.target.getAttribute("data-id"),{method:"PATCH",body:JSON.stringify({name:e.target.getAttribute("data-name"),role:e.target.getAttribute("data-role"),active:e.target.getAttribute("data-active")!=="1"})});toast("Usuário atualizado.");loadUsers()}catch(err){toast(err.message,true)}});
