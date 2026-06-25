@@ -64,7 +64,7 @@ function randomToken(bytes = 32): string {
   return Array.from(buffer, (n) => n.toString(16).padStart(2, "0")).join("");
 }
 
-async function hashPassword(password: string, salt = randomToken(16)): Promise<string> {
+async function hashPassword(password: string, salt = randomToken(16), iterations = 20000): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(password),
@@ -73,17 +73,24 @@ async function hashPassword(password: string, salt = randomToken(16)): Promise<s
     ["deriveBits"],
   );
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt: new TextEncoder().encode(salt), iterations: 120000 },
+    { name: "PBKDF2", hash: "SHA-256", salt: new TextEncoder().encode(salt), iterations },
     key,
     256,
   );
   const hash = Array.from(new Uint8Array(bits), (n) => n.toString(16).padStart(2, "0")).join("");
-  return `${salt}:${hash}`;
+  return `pbkdf2:${iterations}:${salt}:${hash}`;
 }
 
 async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [salt] = stored.split(":");
-  return (await hashPassword(password, salt)) === stored;
+  const parts = stored.split(":");
+  if (parts[0] === "pbkdf2") {
+    const iterations = Number(parts[1]) || 20000;
+    const salt = parts[2];
+    return (await hashPassword(password, salt, iterations)) === stored;
+  }
+  const [salt] = parts;
+  const legacy = await hashPassword(password, salt, 120000);
+  return legacy.split(":")[3] === parts[1];
 }
 
 async function currentUser(request: Request, env: Env): Promise<User | null> {
@@ -127,10 +134,15 @@ async function authRoutes(request: Request, env: Env, path: string): Promise<Res
     const username = clean(data.username, 50);
     const password = clean(data.password, 100);
     if (!name || !username || password.length < 6) return error("Informe nome, usuário e uma senha com pelo menos 6 caracteres.");
-    await env.DB.prepare(
-      "INSERT INTO users (name, username, password_hash, role) VALUES (?, ?, ?, 'admin')",
-    ).bind(name, username, await hashPassword(password)).run();
-    return json({ ok: true }, 201);
+    try {
+      await env.DB.prepare(
+        "INSERT INTO users (name, username, password_hash, role) VALUES (?, ?, ?, 'admin')",
+      ).bind(name, username, await hashPassword(password)).run();
+      return json({ ok: true }, 201);
+    } catch (cause) {
+      console.error("Setup failed", cause);
+      return error("Não foi possível criar o administrador. Tente uma senha diferente ou tente novamente em alguns segundos.", 500);
+    }
   }
 
   if (path === "/api/login" && request.method === "POST") {
