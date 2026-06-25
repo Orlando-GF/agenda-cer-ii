@@ -25,6 +25,20 @@ function clean(value: unknown, max = 200): string {
   return String(value ?? "").trim().slice(0, max);
 }
 
+function titleCaseWord(word: string): string {
+  if (!word) return "";
+  if (word.length > 1 && word === word.toUpperCase()) return word;
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+function titleCaseText(value: unknown, max = 200): string {
+  return clean(value, max)
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((word) => word.split("-").map((part) => part.split("'").map(titleCaseWord).join("'")).join("-"))
+    .join(" ");
+}
+
 function numberList(value: unknown): number[] {
   if (!Array.isArray(value)) return [];
   return Array.from(new Set(value.map(Number).filter((n) => Number.isInteger(n) && n > 0)));
@@ -130,7 +144,7 @@ async function authRoutes(request: Request, env: Env, path: string): Promise<Res
     const count = await env.DB.prepare("SELECT COUNT(*) total FROM users").first<{ total: number }>();
     if (Number(count?.total ?? 0) > 0) return error("O sistema já foi configurado.", 409);
     const data = await body(request);
-    const name = clean(data.name, 100);
+    const name = titleCaseText(data.name, 100);
     const username = clean(data.username, 50);
     const password = clean(data.password, 100);
     if (!name || !username || password.length < 6) return error("Informe nome, usuário e uma senha com pelo menos 6 caracteres.");
@@ -314,21 +328,24 @@ async function api(request: Request, env: Env): Promise<Response> {
   }
   if (path === "/api/professionals" && request.method === "POST") {
     const data = await body(request);
-    const name = clean(data.name, 120);
+    const name = titleCaseText(data.name, 120);
+    const specialty = titleCaseText(data.specialty, 120);
     if (!name) return error("Informe o nome do profissional.");
     const result = await env.DB.prepare(
       "INSERT INTO professionals (name, specialty) VALUES (?, ?)",
-    ).bind(name, clean(data.specialty, 120)).run();
+    ).bind(name, specialty).run();
     await audit(env, user, "professional.create", "professional", Number(result.meta.last_row_id), { name });
     return json({ id: result.meta.last_row_id }, 201);
   }
   const professionalId = path.match(/^\/api\/professionals\/(\d+)$/);
   if (professionalId && request.method === "PATCH") {
     const data = await body(request);
+    const name = titleCaseText(data.name, 120);
+    const specialty = titleCaseText(data.specialty, 120);
     await env.DB.prepare(
       "UPDATE professionals SET name = ?, specialty = ?, active = ? WHERE id = ?",
-    ).bind(clean(data.name, 120), clean(data.specialty, 120), data.active ? 1 : 0, Number(professionalId[1])).run();
-    await audit(env, user, "professional.update", "professional", Number(professionalId[1]), { name: clean(data.name, 120), active: !!data.active });
+    ).bind(name, specialty, data.active ? 1 : 0, Number(professionalId[1])).run();
+    await audit(env, user, "professional.update", "professional", Number(professionalId[1]), { name, active: !!data.active });
     return json({ ok: true });
   }
 
@@ -337,7 +354,7 @@ async function api(request: Request, env: Env): Promise<Response> {
   }
   if (path === "/api/services" && request.method === "POST") {
     const data = await body(request);
-    const name = clean(data.name, 120);
+    const name = titleCaseText(data.name, 120);
     if (!name) return error("Informe o nome do exame.");
     const result = await env.DB.prepare(
       "INSERT INTO services (name) VALUES (?)",
@@ -348,10 +365,11 @@ async function api(request: Request, env: Env): Promise<Response> {
   const serviceId = path.match(/^\/api\/services\/(\d+)$/);
   if (serviceId && request.method === "PATCH") {
     const data = await body(request);
+    const name = titleCaseText(data.name, 120);
     await env.DB.prepare(
       "UPDATE services SET name = ?, active = ? WHERE id = ?",
-    ).bind(clean(data.name, 120), data.active ? 1 : 0, Number(serviceId[1])).run();
-    await audit(env, user, "service.update", "service", Number(serviceId[1]), { name: clean(data.name, 120), active: !!data.active });
+    ).bind(name, data.active ? 1 : 0, Number(serviceId[1])).run();
+    await audit(env, user, "service.update", "service", Number(serviceId[1]), { name, active: !!data.active });
     return json({ ok: true });
   }
 
@@ -360,7 +378,7 @@ async function api(request: Request, env: Env): Promise<Response> {
   }
   if (path === "/api/users" && request.method === "POST") {
     const data = await body(request);
-    const name = clean(data.name, 100);
+    const name = titleCaseText(data.name, 100);
     const username = clean(data.username, 50);
     const password = clean(data.password, 100);
     const role = data.role === "admin" ? "admin" : "atendente";
@@ -380,18 +398,19 @@ async function api(request: Request, env: Env): Promise<Response> {
     const data = await body(request);
     const id = Number(userId[1]);
     if (id === user.id && !data.active) return error("Você não pode desativar seu próprio usuário.");
+    const name = titleCaseText(data.name, 100);
     const password = clean(data.password, 100);
     if (password) {
       if (password.length < 6) return error("A nova senha precisa ter pelo menos 6 caracteres.");
       await env.DB.prepare(
         "UPDATE users SET name = ?, role = ?, active = ?, password_hash = ? WHERE id = ?",
-      ).bind(clean(data.name, 100), data.role === "admin" ? "admin" : "atendente", data.active ? 1 : 0, await hashPassword(password), id).run();
+      ).bind(name, data.role === "admin" ? "admin" : "atendente", data.active ? 1 : 0, await hashPassword(password), id).run();
     } else {
       await env.DB.prepare(
         "UPDATE users SET name = ?, role = ?, active = ? WHERE id = ?",
-      ).bind(clean(data.name, 100), data.role === "admin" ? "admin" : "atendente", data.active ? 1 : 0, id).run();
+      ).bind(name, data.role === "admin" ? "admin" : "atendente", data.active ? 1 : 0, id).run();
     }
-    await audit(env, user, "user.update", "user", id, { name: clean(data.name, 100), role: data.role === "admin" ? "admin" : "atendente", active: !!data.active, passwordChanged: !!password });
+    await audit(env, user, "user.update", "user", id, { name, role: data.role === "admin" ? "admin" : "atendente", active: !!data.active, passwordChanged: !!password });
     return json({ ok: true });
   }
 
@@ -473,7 +492,7 @@ async function api(request: Request, env: Env): Promise<Response> {
     const scheduleId = Number(data.schedule_id);
     const slotNumber = Number(data.slot_number);
     const record = clean(data.record_number, 50);
-    const patientName = clean(data.patient_name, 150);
+    const patientName = titleCaseText(data.patient_name, 150);
     if (!scheduleId || !slotNumber || !record || !patientName) return error("Informe vaga, prontuário e nome do paciente.");
     const examIds = numberList(data.exam_ids);
     const schedule = await env.DB.prepare(
@@ -512,7 +531,7 @@ async function api(request: Request, env: Env): Promise<Response> {
   if (appointmentId && request.method === "PATCH") {
     const data = await body(request);
     const record = clean(data.record_number, 50);
-    const patientName = clean(data.patient_name, 150);
+    const patientName = titleCaseText(data.patient_name, 150);
     if (!record || !patientName) return error("Informe prontuário e nome.");
     const examIds = numberList(data.exam_ids);
     const appointment = await env.DB.prepare(

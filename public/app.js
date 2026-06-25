@@ -3,6 +3,17 @@
   var state={user:null,needsSetup:false,professionals:[],services:[],currentSchedule:null,scheduleDirty:false};
   var $=function(id){return document.getElementById(id)};
   var esc=function(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]})};
+  function titleCaseWord(word){
+    if(!word)return"";
+    if(word.length>1&&word===word.toUpperCase())return word;
+    return word.charAt(0).toUpperCase()+word.slice(1).toLowerCase();
+  }
+  function titleCaseText(value){
+    return String(value||"").trim().replace(/\s+/g," ").split(" ").map(function(word){
+      return word.split("-").map(function(part){return part.split("'").map(titleCaseWord).join("'")}).join("-");
+    }).join(" ");
+  }
+  function normalizeNameInput(el){if(el)el.value=titleCaseText(el.value)}
   var periodName={manha:"Manhã",tarde:"Tarde",noite:"Noite"};
   var dateBr=function(v){if(!v)return"";var p=v.split("-");return p[2]+"/"+p[1]+"/"+p[0]};
   var weekdayBr=function(v){var p=v.split("-"),d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));return ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"][d.getDay()]};
@@ -161,7 +172,8 @@
       $("edit-schedule").onclick=openEditSchedule;
       $("toggle-schedule").onclick=async function(){await toggleSchedule(s.id,closed)};
       document.querySelectorAll(".slot-record").forEach(function(el){el.addEventListener("blur",async function(e){await fillPatientRow(e);autoSaveSlot(e.target)})});
-      document.querySelectorAll(".slot-name,.slot-observation").forEach(function(el){el.addEventListener("blur",function(e){autoSaveSlot(e.target)})});
+      document.querySelectorAll(".slot-name").forEach(function(el){el.addEventListener("blur",function(e){normalizeNameInput(e.target);autoSaveSlot(e.target)})});
+      document.querySelectorAll(".slot-observation").forEach(function(el){el.addEventListener("blur",function(e){autoSaveSlot(e.target)})});
       document.querySelectorAll(".slot-exams input[type=checkbox]").forEach(function(el){el.addEventListener("change",function(e){autoSaveSlot(e.target)})});
       document.querySelectorAll(".delete-appointment").forEach(function(el){el.onclick=function(){removeAppointment(Number(el.getAttribute("data-id")))}}); 
     }catch(e){toast(e.message,true)}
@@ -241,6 +253,7 @@
   async function saveSlot(index,options){
     options=options||{};
     var row=document.querySelector('tr[data-slot="'+index+'"]');if(!row)return;
+    normalizeNameInput(row.querySelector(".slot-name"));
     var id=row.getAttribute("data-appointment-id"),record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim(),observation=row.querySelector(".slot-observation").value.trim();
     if(!record||!name){if(!options.silent)toast("Informe prontuário e nome do paciente.",true);else markSlotSaving(row,"Falta dados",true);return}
     var examIds=selectedExamIds("slot-exam-"+index);
@@ -265,6 +278,7 @@
   }
   $("edit-appointment-form").addEventListener("submit",async function(e){
     e.preventDefault();
+    normalizeNameInput($("edit-patient-name"));
     try{await api("/api/appointments/"+$("edit-appointment-id").value,{method:"PATCH",body:JSON.stringify({record_number:$("edit-record").value,patient_name:$("edit-patient-name").value,observation:$("edit-observation").value,exam_ids:selectedExamIds("edit-exam")})});$("edit-dialog").close();toast("Paciente atualizado.");openSchedule(state.currentSchedule.schedule.id)}catch(err){toast(err.message,true)}
   });
   async function removeAppointment(id){if(!await askConfirm("Limpar vaga","Remover este paciente desta vaga?","Limpar"))return;try{await api("/api/appointments/"+id,{method:"DELETE"});toast("Vaga limpa.");refreshSchedulesSoon();openSchedule(state.currentSchedule.schedule.id)}catch(e){toast(e.message,true)}}
@@ -320,8 +334,9 @@
     if(type==="service")return'<table><thead><tr><th>Nome</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action edit-catalog" data-type="'+type+'" data-id="'+x.id+'">Editar</button><button class="table-action toggle-catalog" data-type="'+type+'" data-id="'+x.id+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
     return'<table><thead><tr><th>Nome</th><th>Especialidade</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.specialty)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action edit-catalog" data-type="'+type+'" data-id="'+x.id+'">Editar</button><button class="table-action toggle-catalog" data-type="'+type+'" data-id="'+x.id+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
   }
-  $("professional-form").addEventListener("submit",async function(e){e.preventDefault();try{await api("/api/professionals",{method:"POST",body:JSON.stringify({name:$("professional-name").value,specialty:$("professional-specialty").value})});this.reset();toast("Profissional cadastrado.");loadProfessionals(true)}catch(err){toast(err.message,true)}});
-  $("service-form").addEventListener("submit",async function(e){e.preventDefault();try{await api("/api/services",{method:"POST",body:JSON.stringify({name:$("service-name").value})});this.reset();toast("Exame cadastrado.");loadServices(true)}catch(err){toast(err.message,true)}});
+  ["professional-name","professional-specialty","service-name","user-name","edit-patient-name","catalog-edit-name","catalog-edit-specialty"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeNameInput(el)})});
+  $("professional-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("professional-name"));normalizeNameInput($("professional-specialty"));try{await api("/api/professionals",{method:"POST",body:JSON.stringify({name:$("professional-name").value,specialty:$("professional-specialty").value})});this.reset();toast("Profissional cadastrado.");loadProfessionals(true)}catch(err){toast(err.message,true)}});
+  $("service-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("service-name"));try{await api("/api/services",{method:"POST",body:JSON.stringify({name:$("service-name").value})});this.reset();toast("Exame cadastrado.");loadServices(true)}catch(err){toast(err.message,true)}});
   document.addEventListener("click",async function(e){
     if(!e.target.classList.contains("toggle-catalog"))return;
     var type=e.target.getAttribute("data-type"),id=e.target.getAttribute("data-id"),active=e.target.getAttribute("data-active")==="1",rows=type==="professional"?state.professionals:state.services,x=rows.find(function(r){return String(r.id)===id});
@@ -342,6 +357,8 @@
     e.preventDefault();
     var type=$("catalog-edit-type").value,id=$("catalog-edit-id").value,rows=type==="professional"?state.professionals:state.services,x=rows.find(function(r){return String(r.id)===id});
     if(!x)return;
+    normalizeNameInput($("catalog-edit-name"));
+    normalizeNameInput($("catalog-edit-specialty"));
     var payload={name:$("catalog-edit-name").value.trim(),active:!!x.active};
     if(!payload.name){toast("Informe o nome.",true);return}
     if(type==="professional")payload.specialty=$("catalog-edit-specialty").value.trim();
@@ -364,7 +381,7 @@
       $("user-password").value="";
     },100);
   }
-  $("user-form").addEventListener("submit",async function(e){e.preventDefault();try{await api("/api/users",{method:"POST",body:JSON.stringify({name:$("user-name").value,username:$("user-username").value,password:$("user-password").value,role:$("user-role").value})});this.reset();toast("Usuário cadastrado.");loadUsers()}catch(err){toast(err.message,true)}});
+  $("user-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("user-name"));try{await api("/api/users",{method:"POST",body:JSON.stringify({name:$("user-name").value,username:$("user-username").value,password:$("user-password").value,role:$("user-role").value})});this.reset();toast("Usuário cadastrado.");loadUsers()}catch(err){toast(err.message,true)}});
   document.addEventListener("click",async function(e){if(!e.target.classList.contains("toggle-user"))return;try{await api("/api/users/"+e.target.getAttribute("data-id"),{method:"PATCH",body:JSON.stringify({name:e.target.getAttribute("data-name"),role:e.target.getAttribute("data-role"),active:e.target.getAttribute("data-active")!=="1"})});toast("Usuário atualizado.");loadUsers()}catch(err){toast(err.message,true)}});
   start();
 })();
