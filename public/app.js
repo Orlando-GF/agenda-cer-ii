@@ -1,6 +1,6 @@
 (function(){
   "use strict";
-  var state={user:null,needsSetup:false,professionals:[],services:[],currentSchedule:null,scheduleDirty:false};
+  var state={user:null,needsSetup:false,professionals:[],currentSchedule:null,scheduleDirty:false};
   var $=function(id){return document.getElementById(id)};
   var esc=function(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]})};
   function titleCaseWord(word){
@@ -43,7 +43,6 @@
     $("sidebar").classList.remove("open");
     if(page==="agenda")loadSchedules();
     if(page==="professionals")loadProfessionals(true);
-    if(page==="services")loadServices(true);
     if(page==="users"){clearUserForm();loadUsers()}
     if(page==="new-schedule")loadCatalogs();
   }
@@ -133,7 +132,7 @@
     }).join("");
   }
   async function loadCatalogs(){
-    await Promise.all([loadProfessionals(false),loadServices(false)]);
+    await loadProfessionals(false);
     updateScheduleKind();
     $("schedule-professional").innerHTML='<option value="">Selecione...</option>'+state.professionals.filter(function(x){return x.active}).map(function(x){return'<option value="'+x.id+'">'+esc(x.name)+(x.specialty?" — "+esc(x.specialty):"")+'</option>'}).join("");
   }
@@ -154,18 +153,16 @@
   async function openSchedule(id){
     try{
       var data=await api("/api/schedules/"+id);state.currentSchedule=data;
-      var s=data.schedule,title=s.professional_name||"Profissional não informado",available=Number(s.capacity)-Number(s.occupied),isExam=s.kind==="exame",closed=!Number(s.active);
-      if(isExam&&!state.services.length)await loadServices(false);
-      var examHead=isExam?'<th class="col-exams">Exames</th>':'';
-      var tableClass=isExam?"slots-table exam-slots":"slots-table consultation-slots";
-      var colgroup=isExam?'<colgroup><col class="col-num"><col class="col-record"><col class="col-patient"><col class="col-exams"><col class="col-observation"><col class="col-actions"></colgroup>':'<colgroup><col class="col-num"><col class="col-record"><col class="col-patient"><col class="col-observation"><col class="col-actions"></colgroup>';
+      var s=data.schedule,title=s.professional_name||"Profissional não informado",available=Number(s.capacity)-Number(s.occupied),closed=!Number(s.active);
+      var tableClass="slots-table consultation-slots";
+      var colgroup='<colgroup><col class="col-num"><col class="col-record"><col class="col-patient"><col class="col-observation"><col class="col-actions"></colgroup>';
       var bySlot={};data.appointments.forEach(function(a){bySlot[Number(a.slot_number)]=a});
       var rows="";
       for(var i=0;i<Number(s.capacity);i++){
-        var a=bySlot[i+1]||{},selected=(a.exams||[]).map(function(x){return x.id}),examCell=isExam?'<td class="slot-exams col-exams"><div class="exam-inline">'+examCheckboxes("slot-exam-"+i,selected)+'</div></td>':'';
-        rows+='<tr data-slot="'+i+'" data-appointment-id="'+(a.id||"")+'"><td class="slot-number col-num">'+(i+1)+'</td><td class="col-record"><input class="slot-record" value="'+esc(a.record_number||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td><td class="col-patient"><input class="slot-name" value="'+esc(a.patient_name||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td>'+examCell+'<td class="col-observation"><input class="slot-observation" value="'+esc(a.observation||"")+'" '+(closed?"disabled":"")+'></td><td class="no-print slot-actions col-actions">'+(closed?'<span class="muted">Encerrada</span>':'<span class="slot-save-status"></span>'+(a.id?'<button class="table-action clear-slot delete-appointment" title="Limpar vaga" aria-label="Limpar vaga" data-id="'+a.id+'">🧹</button>':''))+'</td></tr>';
+        var a=bySlot[i+1]||{};
+        rows+='<tr data-slot="'+i+'" data-appointment-id="'+(a.id||"")+'"><td class="slot-number col-num">'+(i+1)+'</td><td class="col-record"><input class="slot-record" value="'+esc(a.record_number||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td><td class="col-patient"><input class="slot-name" value="'+esc(a.patient_name||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td><td class="col-observation"><input class="slot-observation" value="'+esc(a.observation||"")+'" '+(closed?"disabled":"")+'></td><td class="no-print slot-actions col-actions">'+(closed?'<span class="muted">Encerrada</span>':'<span class="slot-save-status"></span>'+(a.id?'<button class="table-action clear-slot delete-appointment" title="Limpar vaga" aria-label="Limpar vaga" data-id="'+a.id+'">🧹</button>':''))+'</td></tr>';
       }
-      $("schedule-detail").innerHTML='<div class="dialog-body"><div class="dialog-header"><div><h2>'+esc(title)+' '+(closed?'<span class="status off">Encerrada</span>':'')+' <button class="icon-button no-print" id="edit-schedule" title="Editar dados da agenda" aria-label="Editar dados da agenda">✏️</button></h2><p><span class="badge-line">'+kindLabel(s.kind)+periodLabel(s.period,s.time_label)+'</span> '+dateBr(s.schedule_date)+'</p></div><button class="close-button no-print" id="close-schedule" type="button">×</button></div><div class="detail-summary"><div class="summary-box"><strong>'+s.occupied+'</strong> agendados</div><div class="summary-box"><strong>'+available+'</strong> vagas disponíveis</div><button class="secondary no-print" id="print-button">Imprimir</button><button class="'+(closed?"primary":"danger")+' no-print" id="toggle-schedule">'+(closed?"Reativar agenda":"Encerrar agenda")+'</button></div><h3>Vagas da agenda</h3><p class="muted no-print">'+(closed?"Esta agenda está encerrada. Reative para editar as vagas.":"Preencha direto na linha da vaga. As alterações são salvas automaticamente.")+'</p><div class="table-wrap slots-wrap"><table class="'+tableClass+'">'+colgroup+'<thead><tr><th class="col-num">#</th><th class="col-record">Prontuário</th><th class="col-patient">Paciente</th>'+examHead+'<th class="col-observation">Observação</th><th class="no-print col-actions"></th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="print-only">Impresso em '+new Date().toLocaleString("pt-BR")+'</p></div>';
+      $("schedule-detail").innerHTML='<div class="dialog-body"><div class="dialog-header"><div><h2>'+esc(title)+' '+(closed?'<span class="status off">Encerrada</span>':'')+' <button class="icon-button no-print" id="edit-schedule" title="Editar dados da agenda" aria-label="Editar dados da agenda">✏️</button></h2><p><span class="badge-line">'+kindLabel(s.kind)+periodLabel(s.period,s.time_label)+'</span> '+dateBr(s.schedule_date)+'</p></div><button class="close-button no-print" id="close-schedule" type="button">×</button></div><div class="detail-summary"><div class="summary-box"><strong>'+s.occupied+'</strong> agendados</div><div class="summary-box"><strong>'+available+'</strong> vagas disponíveis</div><button class="secondary no-print" id="print-button">Imprimir</button><button class="'+(closed?"primary":"danger")+' no-print" id="toggle-schedule">'+(closed?"Reativar agenda":"Encerrar agenda")+'</button></div><h3>Vagas da agenda</h3><p class="muted no-print">'+(closed?"Esta agenda está encerrada. Reative para editar as vagas.":"Preencha direto na linha da vaga. As alterações são salvas automaticamente.")+'</p><div class="table-wrap slots-wrap"><table class="'+tableClass+'">'+colgroup+'<thead><tr><th class="col-num">#</th><th class="col-record">Prontuário</th><th class="col-patient">Paciente</th><th class="col-observation">Observação</th><th class="no-print col-actions"></th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="print-only">Impresso em '+new Date().toLocaleString("pt-BR")+'</p></div>';
       if(!$("schedule-dialog").open)$("schedule-dialog").showModal();
       $("close-schedule").onclick=requestCloseSchedule;
       $("print-button").onclick=printSchedule;
@@ -174,47 +171,14 @@
       document.querySelectorAll(".slot-record").forEach(function(el){el.addEventListener("blur",async function(e){await fillPatientRow(e);autoSaveSlot(e.target)})});
       document.querySelectorAll(".slot-name").forEach(function(el){el.addEventListener("blur",function(e){normalizeNameInput(e.target);autoSaveSlot(e.target)})});
       document.querySelectorAll(".slot-observation").forEach(function(el){el.addEventListener("blur",function(e){autoSaveSlot(e.target)})});
-      document.querySelectorAll(".slot-exams input[type=checkbox]").forEach(function(el){el.addEventListener("change",function(e){autoSaveSlot(e.target)})});
       document.querySelectorAll(".delete-appointment").forEach(function(el){el.onclick=function(){removeAppointment(Number(el.getAttribute("data-id")))}}); 
     }catch(e){toast(e.message,true)}
   }
-  function examCheckboxes(name,selected){
-    selected=selected||[];
-    var selectedMap={};selected.forEach(function(id){selectedMap[String(id)]=true});
-    var active=state.services.filter(function(x){return x.active||selectedMap[String(x.id)]});
-    if(!active.length)return'<p class="muted">Cadastre os exames antes de agendar pacientes.</p>';
-    var disabled=state.currentSchedule&&Number(state.currentSchedule.schedule.active)===0;
-    return active.map(function(x){return'<label class="check-row"><input type="checkbox" name="'+name+'" value="'+x.id+'" '+(selectedMap[String(x.id)]?"checked":"")+' '+(disabled?"disabled":"")+'> '+esc(x.name)+'</label>'}).join("");
-  }
-  function selectedExamIds(name){
-    return Array.from(document.querySelectorAll('input[name="'+name+'"]:checked')).map(function(el){return Number(el.value)});
-  }
-  function pendingUnsavedRows(){
-    if(!state.currentSchedule||state.currentSchedule.schedule.kind!=="exame")return [];
-    return Array.from(document.querySelectorAll("#schedule-dialog tbody tr")).filter(function(row){
-      var record=row.querySelector(".slot-record").value.trim();
-      var name=row.querySelector(".slot-name").value.trim();
-      var index=Number(row.getAttribute("data-slot"));
-      return (record||name)&&!selectedExamIds("slot-exam-"+index).length;
-    });
-  }
   async function requestCloseSchedule(){
-    var pending=pendingUnsavedRows();
-    if(pending.length){
-      pending.forEach(function(row){markSlotSaving(row,"Marque exame",true)});
-      var ok=await askConfirm("Paciente não salvo","Existe paciente preenchido sem exame marcado. Se fechar agora, essa vaga não será salva.","Fechar sem salvar");
-      if(!ok)return;
-    }
     $("schedule-dialog").close();
   }
   async function printSchedule(){
     if(!state.currentSchedule){toast("Abra uma agenda para imprimir.",true);return}
-    var pending=pendingUnsavedRows();
-    if(pending.length){
-      pending.forEach(function(row){markSlotSaving(row,"Marque exame",true)});
-      toast("Marque o exame antes de imprimir.",true);
-      return;
-    }
     var printUrl="/print/schedule/"+state.currentSchedule.schedule.id;
     var printWindow=window.open(printUrl,"_blank");
     if(printWindow)printWindow.focus();
@@ -259,9 +223,7 @@
     normalizeNameInput(row.querySelector(".slot-name"));
     var id=row.getAttribute("data-appointment-id"),record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim(),observation=row.querySelector(".slot-observation").value.trim();
     if(!record||!name){if(!options.silent)toast("Informe prontuário e nome do paciente.",true);else markSlotSaving(row,"Falta dados",true);return}
-    var examIds=selectedExamIds("slot-exam-"+index);
-    if(state.currentSchedule.schedule.kind==="exame"&&!examIds.length){if(!options.silent)toast("Marque pelo menos um exame para este paciente.",true);else markSlotSaving(row,"Marque exame",true);return}
-    var payload={schedule_id:state.currentSchedule.schedule.id,slot_number:index+1,record_number:record,patient_name:name,observation:observation,exam_ids:examIds};
+    var payload={schedule_id:state.currentSchedule.schedule.id,slot_number:index+1,record_number:record,patient_name:name,observation:observation};
     markSlotSaving(row,"Salvando...",false);
     try{
       if(id)await api("/api/appointments/"+id,{method:"PATCH",body:JSON.stringify(payload)});
@@ -275,14 +237,11 @@
   function editAppointment(id){
     var a=state.currentSchedule.appointments.find(function(x){return Number(x.id)===id});if(!a)return;
     $("edit-appointment-id").value=id;$("edit-record").value=a.record_number;$("edit-patient-name").value=a.patient_name;$("edit-observation").value=a.observation||"";$("edit-dialog").showModal();
-    var isExam=state.currentSchedule.schedule.kind==="exame";
-    $("edit-exams-wrap").classList.toggle("hidden",!isExam);
-    if(isExam)$("edit-exams-wrap").innerHTML='<strong>Exames do paciente</strong><div>'+examCheckboxes("edit-exam",(a.exams||[]).map(function(x){return x.id}))+'</div>';
   }
   $("edit-appointment-form").addEventListener("submit",async function(e){
     e.preventDefault();
     normalizeNameInput($("edit-patient-name"));
-    try{await api("/api/appointments/"+$("edit-appointment-id").value,{method:"PATCH",body:JSON.stringify({record_number:$("edit-record").value,patient_name:$("edit-patient-name").value,observation:$("edit-observation").value,exam_ids:selectedExamIds("edit-exam")})});$("edit-dialog").close();toast("Paciente atualizado.");openSchedule(state.currentSchedule.schedule.id)}catch(err){toast(err.message,true)}
+    try{await api("/api/appointments/"+$("edit-appointment-id").value,{method:"PATCH",body:JSON.stringify({record_number:$("edit-record").value,patient_name:$("edit-patient-name").value,observation:$("edit-observation").value})});$("edit-dialog").close();toast("Paciente atualizado.");openSchedule(state.currentSchedule.schedule.id)}catch(err){toast(err.message,true)}
   });
   async function removeAppointment(id){if(!await askConfirm("Limpar vaga","Remover este paciente desta vaga?","Limpar"))return;try{await api("/api/appointments/"+id,{method:"DELETE"});toast("Vaga limpa.");refreshSchedulesSoon();openSchedule(state.currentSchedule.schedule.id)}catch(e){toast(e.message,true)}}
   async function toggleSchedule(id,isClosed){
@@ -329,43 +288,38 @@
   async function loadProfessionals(render){
     try{state.professionals=await api("/api/professionals");if(render)$("professional-list").innerHTML=tableCatalog(state.professionals,"professional")}catch(e){toast(e.message,true)}
   }
-  async function loadServices(render){
-    try{state.services=await api("/api/services");if(render)$("service-list").innerHTML=tableCatalog(state.services,"service")}catch(e){toast(e.message,true)}
-  }
   function tableCatalog(rows,type){
     if(!rows.length)return"<p>Nenhum cadastro ainda.</p>";
-    if(type==="service")return'<table><thead><tr><th>Nome</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action edit-catalog" data-type="'+type+'" data-id="'+x.id+'">Editar</button><button class="table-action toggle-catalog" data-type="'+type+'" data-id="'+x.id+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
     return'<table><thead><tr><th>Nome</th><th>Especialidade</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.specialty)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action edit-catalog" data-type="'+type+'" data-id="'+x.id+'">Editar</button><button class="table-action toggle-catalog" data-type="'+type+'" data-id="'+x.id+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
   }
-  ["professional-name","professional-specialty","service-name","user-name","edit-patient-name","catalog-edit-name","catalog-edit-specialty"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeNameInput(el)})});
+  ["professional-name","professional-specialty","user-name","edit-patient-name","catalog-edit-name","catalog-edit-specialty"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeNameInput(el)})});
   $("professional-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("professional-name"));normalizeNameInput($("professional-specialty"));try{await api("/api/professionals",{method:"POST",body:JSON.stringify({name:$("professional-name").value,specialty:$("professional-specialty").value})});this.reset();toast("Profissional cadastrado.");loadProfessionals(true)}catch(err){toast(err.message,true)}});
-  $("service-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("service-name"));try{await api("/api/services",{method:"POST",body:JSON.stringify({name:$("service-name").value})});this.reset();toast("Exame cadastrado.");loadServices(true)}catch(err){toast(err.message,true)}});
   document.addEventListener("click",async function(e){
     if(!e.target.classList.contains("toggle-catalog"))return;
-    var type=e.target.getAttribute("data-type"),id=e.target.getAttribute("data-id"),active=e.target.getAttribute("data-active")==="1",rows=type==="professional"?state.professionals:state.services,x=rows.find(function(r){return String(r.id)===id});
-    if(!x)return;var payload={name:x.name,active:!active};if(type==="professional")payload.specialty=x.specialty;
-    try{await api("/api/"+(type==="professional"?"professionals":"services")+"/"+id,{method:"PATCH",body:JSON.stringify(payload)});toast(active?"Cadastro desativado.":"Cadastro ativado.");type==="professional"?loadProfessionals(true):loadServices(true)}catch(err){toast(err.message,true)}
+    var type=e.target.getAttribute("data-type"),id=e.target.getAttribute("data-id"),active=e.target.getAttribute("data-active")==="1",x=state.professionals.find(function(r){return String(r.id)===id});
+    if(!x)return;var payload={name:x.name,specialty:x.specialty,active:!active};
+    try{await api("/api/professionals/"+id,{method:"PATCH",body:JSON.stringify(payload)});toast(active?"Cadastro desativado.":"Cadastro ativado.");loadProfessionals(true)}catch(err){toast(err.message,true)}
   });
   document.addEventListener("click",async function(e){
     if(!e.target.classList.contains("edit-catalog"))return;
-    var type=e.target.getAttribute("data-type"),id=e.target.getAttribute("data-id"),rows=type==="professional"?state.professionals:state.services,x=rows.find(function(r){return String(r.id)===id});
+    var type=e.target.getAttribute("data-type"),id=e.target.getAttribute("data-id"),x=state.professionals.find(function(r){return String(r.id)===id});
     if(!x)return;
-    $("catalog-dialog-title").textContent=type==="professional"?"Editar profissional":"Editar exame";
+    $("catalog-dialog-title").textContent="Editar profissional";
     $("catalog-edit-type").value=type;$("catalog-edit-id").value=id;$("catalog-edit-name").value=x.name;
-    $("catalog-specialty-wrap").classList.toggle("hidden",type!=="professional");
+    $("catalog-specialty-wrap").classList.remove("hidden");
     $("catalog-edit-specialty").value=x.specialty||"";
     $("catalog-dialog").showModal();
   });
   $("catalog-edit-form").addEventListener("submit",async function(e){
     e.preventDefault();
-    var type=$("catalog-edit-type").value,id=$("catalog-edit-id").value,rows=type==="professional"?state.professionals:state.services,x=rows.find(function(r){return String(r.id)===id});
+    var id=$("catalog-edit-id").value,x=state.professionals.find(function(r){return String(r.id)===id});
     if(!x)return;
     normalizeNameInput($("catalog-edit-name"));
     normalizeNameInput($("catalog-edit-specialty"));
     var payload={name:$("catalog-edit-name").value.trim(),active:!!x.active};
     if(!payload.name){toast("Informe o nome.",true);return}
-    if(type==="professional")payload.specialty=$("catalog-edit-specialty").value.trim();
-    try{await api("/api/"+(type==="professional"?"professionals":"services")+"/"+id,{method:"PATCH",body:JSON.stringify(payload)});$("catalog-dialog").close();toast("Cadastro atualizado.");type==="professional"?loadProfessionals(true):loadServices(true)}catch(err){toast(err.message,true)}
+    payload.specialty=$("catalog-edit-specialty").value.trim();
+    try{await api("/api/professionals/"+id,{method:"PATCH",body:JSON.stringify(payload)});$("catalog-dialog").close();toast("Cadastro atualizado.");loadProfessionals(true)}catch(err){toast(err.message,true)}
   });
   async function loadUsers(){
     if(state.user.role!=="admin")return;

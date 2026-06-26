@@ -39,11 +39,6 @@ function titleCaseText(value: unknown, max = 200): string {
     .join(" ");
 }
 
-function numberList(value: unknown): number[] {
-  if (!Array.isArray(value)) return [];
-  return Array.from(new Set(value.map(Number).filter((n) => Number.isInteger(n) && n > 0)));
-}
-
 function todaySaoPaulo(): string {
   return new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
@@ -237,26 +232,7 @@ async function scheduleDetails(env: Env, id: number): Promise<Response> {
      WHERE a.schedule_id = ?
      ORDER BY a.slot_number`,
   ).bind(id).all<Record<string, unknown> & { id: number }>();
-  const rows = appointments.results ?? [];
-  if (schedule.kind === "exame" && rows.length) {
-    const ids = rows.map((a) => Number(a.id)).filter(Boolean);
-    const placeholders = ids.map(() => "?").join(",");
-    const exams = await env.DB.prepare(
-      `SELECT ae.appointment_id, s.id, s.name
-       FROM appointment_exams ae
-       JOIN services s ON s.id = ae.service_id
-       WHERE ae.appointment_id IN (${placeholders})
-       ORDER BY s.name`,
-    ).bind(...ids).all<{ appointment_id: number; id: number; name: string }>();
-    const byAppointment = new Map<number, { id: number; name: string }[]>();
-    for (const exam of exams.results ?? []) {
-      const list = byAppointment.get(exam.appointment_id) ?? [];
-      list.push({ id: exam.id, name: exam.name });
-      byAppointment.set(exam.appointment_id, list);
-    }
-    for (const row of rows) row.exams = byAppointment.get(Number(row.id)) ?? [];
-  }
-  return json({ schedule: normalizedSchedule, appointments: rows });
+  return json({ schedule: normalizedSchedule, appointments: appointments.results ?? [] });
 }
 
 async function printSchedulePage(request: Request, env: Env, id: number): Promise<Response> {
@@ -271,7 +247,7 @@ async function printSchedulePage(request: Request, env: Env, id: number): Promis
   if (!detail.ok) return detail;
   const data = await detail.json() as {
     schedule: Record<string, unknown> & { kind: string; professional_name?: string; schedule_date: string; period: string; time_label?: string; occupied: number; capacity: number };
-    appointments: Array<Record<string, unknown> & { slot_number: number; record_number: string; patient_name: string; observation: string; exams?: Array<{ name: string }> }>;
+    appointments: Array<Record<string, unknown> & { slot_number: number; record_number: string; patient_name: string; observation: string }>;
   };
   const schedule = data.schedule;
   const isExam = schedule.kind === "exame";
@@ -281,8 +257,7 @@ async function printSchedulePage(request: Request, env: Env, id: number): Promis
   const rows = Array.from({ length: capacity }, (_, index) => {
     const slot = index + 1;
     const appointment = rowsBySlot.get(slot);
-    const exams = appointment?.exams?.map((exam) => exam.name).join(", ") ?? "";
-    return `<tr><td class="num">${slot}</td><td>${html(appointment?.record_number)}</td><td>${html(appointment?.patient_name)}</td>${isExam ? `<td>${html(exams)}</td>` : ""}<td>${html(appointment?.observation)}</td></tr>`;
+    return `<tr><td class="num">${slot}</td><td>${html(appointment?.record_number)}</td><td>${html(appointment?.patient_name)}</td><td>${html(appointment?.observation)}</td></tr>`;
   }).join("");
   const periodName: Record<string, string> = { manha: "Manhã", tarde: "Tarde", noite: "Noite" };
   const markup = `<!doctype html>
@@ -308,7 +283,7 @@ async function printSchedulePage(request: Request, env: Env, id: number): Promis
   <h1>${html(schedule.professional_name || "Profissional não informado")}</h1>
   <p>${isExam ? "Agenda de exame" : "Consulta"} • ${html(schedule.schedule_date.split("-").reverse().join("/"))} • ${html(periodName[schedule.period] || schedule.period)}${schedule.time_label ? ` • ${html(schedule.time_label)}` : ""}</p>
   <div class="summary"><div class="box"><strong>${html(schedule.occupied)}</strong> agendados</div><div class="box"><strong>${html(schedule.capacity)}</strong> vagas</div></div>
-  <table><thead><tr><th class="num">#</th><th class="record">Prontuário</th><th>Paciente</th>${isExam ? "<th>Exames</th>" : ""}<th class="obs">Observação</th></tr></thead><tbody>${rows}</tbody></table>
+  <table><thead><tr><th class="num">#</th><th class="record">Prontuário</th><th>Paciente</th><th class="obs">Observação</th></tr></thead><tbody>${rows}</tbody></table>
   <script>
     function closePrintPage(){
       if(window.opener){ window.close(); return; }
@@ -354,30 +329,6 @@ async function api(request: Request, env: Env): Promise<Response> {
       "UPDATE professionals SET name = ?, specialty = ?, active = ? WHERE id = ?",
     ).bind(name, specialty, data.active ? 1 : 0, Number(professionalId[1])).run();
     await audit(env, user, "professional.update", "professional", Number(professionalId[1]), { name, active: !!data.active });
-    return json({ ok: true });
-  }
-
-  if (path === "/api/services" && request.method === "GET") {
-    return json((await env.DB.prepare("SELECT * FROM services ORDER BY active DESC, name").all()).results);
-  }
-  if (path === "/api/services" && request.method === "POST") {
-    const data = await body(request);
-    const name = titleCaseText(data.name, 120);
-    if (!name) return error("Informe o nome do exame.");
-    const result = await env.DB.prepare(
-      "INSERT INTO services (name) VALUES (?)",
-    ).bind(name).run();
-    await audit(env, user, "service.create", "service", Number(result.meta.last_row_id), { name });
-    return json({ id: result.meta.last_row_id }, 201);
-  }
-  const serviceId = path.match(/^\/api\/services\/(\d+)$/);
-  if (serviceId && request.method === "PATCH") {
-    const data = await body(request);
-    const name = titleCaseText(data.name, 120);
-    await env.DB.prepare(
-      "UPDATE services SET name = ?, active = ? WHERE id = ?",
-    ).bind(name, data.active ? 1 : 0, Number(serviceId[1])).run();
-    await audit(env, user, "service.update", "service", Number(serviceId[1]), { name, active: !!data.active });
     return json({ ok: true });
   }
 
@@ -502,7 +453,6 @@ async function api(request: Request, env: Env): Promise<Response> {
     const record = clean(data.record_number, 50);
     const patientName = titleCaseText(data.patient_name, 150);
     if (!scheduleId || !slotNumber || !record || !patientName) return error("Informe vaga, prontuário e nome do paciente.");
-    const examIds = numberList(data.exam_ids);
     const schedule = await env.DB.prepare(
       `SELECT s.kind, s.capacity, COUNT(a.id) occupied FROM schedules s
        LEFT JOIN appointments a ON a.schedule_id = s.id
@@ -512,7 +462,6 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (!schedule) return error("Agenda não encontrada.", 404);
     if (slotNumber < 1 || slotNumber > Number(schedule.capacity)) return error("Número da vaga inválido para esta agenda.");
     if (Number(schedule.occupied) >= Number(schedule.capacity)) return error("Esta agenda já está lotada.", 409);
-    if (schedule.kind === "exame" && examIds.length === 0) return error("Selecione pelo menos um exame para o paciente.");
     await env.DB.prepare(
       `INSERT INTO patients (record_number, name) VALUES (?, ?)
        ON CONFLICT(record_number) DO UPDATE SET name = excluded.name, updated_at = CURRENT_TIMESTAMP`,
@@ -522,14 +471,7 @@ async function api(request: Request, env: Env): Promise<Response> {
       const result = await env.DB.prepare(
         "INSERT INTO appointments (schedule_id, slot_number, patient_id, observation, created_by) VALUES (?, ?, ?, ?, ?)",
       ).bind(scheduleId, slotNumber, patient!.id, clean(data.observation, 500), user.id).run();
-      if (schedule.kind === "exame") {
-        await env.DB.batch(
-          examIds.map((serviceId) =>
-            env.DB.prepare("INSERT INTO appointment_exams (appointment_id, service_id) VALUES (?, ?)").bind(result.meta.last_row_id, serviceId),
-          ),
-        );
-      }
-      await audit(env, user, "appointment.create", "appointment", Number(result.meta.last_row_id), { scheduleId, slotNumber, record, patientName, examIds });
+      await audit(env, user, "appointment.create", "appointment", Number(result.meta.last_row_id), { scheduleId, slotNumber, record, patientName });
       return json({ id: result.meta.last_row_id }, 201);
     } catch {
       return error("Este prontuário já está nessa agenda ou esta vaga já está ocupada.", 409);
@@ -541,7 +483,6 @@ async function api(request: Request, env: Env): Promise<Response> {
     const record = clean(data.record_number, 50);
     const patientName = titleCaseText(data.patient_name, 150);
     if (!record || !patientName) return error("Informe prontuário e nome.");
-    const examIds = numberList(data.exam_ids);
     const appointment = await env.DB.prepare(
       `SELECT a.patient_id, s.kind, s.active, s.schedule_date
        FROM appointments a
@@ -550,20 +491,13 @@ async function api(request: Request, env: Env): Promise<Response> {
     ).bind(Number(appointmentId[1])).first<{ patient_id: number; kind: string; active: number; schedule_date: string }>();
     if (!appointment) return error("Agendamento não encontrado.", 404);
     if (Number(appointment.active) !== 1 || appointment.schedule_date < todaySaoPaulo()) return error("Esta agenda está encerrada.");
-    if (appointment.kind === "exame" && examIds.length === 0) return error("Selecione pelo menos um exame para o paciente.");
     try {
       const statements = [
         env.DB.prepare("UPDATE patients SET record_number = ?, name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(record, patientName, appointment.patient_id),
         env.DB.prepare("UPDATE appointments SET observation = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(clean(data.observation, 500), Number(appointmentId[1])),
       ];
-      if (appointment.kind === "exame") {
-        statements.push(env.DB.prepare("DELETE FROM appointment_exams WHERE appointment_id = ?").bind(Number(appointmentId[1])));
-        for (const serviceId of examIds) {
-          statements.push(env.DB.prepare("INSERT INTO appointment_exams (appointment_id, service_id) VALUES (?, ?)").bind(Number(appointmentId[1]), serviceId));
-        }
-      }
       await env.DB.batch(statements);
-      await audit(env, user, "appointment.update", "appointment", Number(appointmentId[1]), { record, patientName, examIds });
+      await audit(env, user, "appointment.update", "appointment", Number(appointmentId[1]), { record, patientName });
       return json({ ok: true });
     } catch {
       return error("Já existe outro paciente com esse prontuário.", 409);

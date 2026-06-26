@@ -45,7 +45,6 @@
         <button data-page="agenda" class="nav-item active"><span class="nav-icon">📅</span><span>Agenda</span></button>
         <button data-page="new-schedule" class="nav-item"><span class="nav-icon">＋</span><span>Nova agenda</span></button>
         <button data-page="professionals" class="nav-item"><span class="nav-icon">🩺</span><span>Profissionais</span></button>
-        <button data-page="services" class="nav-item"><span class="nav-icon">🧪</span><span>Exames</span></button>
         <button data-page="users" class="nav-item admin-only"><span class="nav-icon">👤</span><span>Usuários</span></button>
       </nav>
     </aside>
@@ -147,15 +146,6 @@
         <div id="professional-list" class="card table-wrap"></div>
       </div>
 
-      <div id="page-services" class="page hidden">
-        <div class="page-heading"><div><h2>Exames</h2><p>Cadastre os exames que possuem agenda própria.</p></div></div>
-        <form id="service-form" class="card inline-form">
-          <label>Nome <input id="service-name" required></label>
-          <button class="primary">Cadastrar</button>
-        </form>
-        <div id="service-list" class="card table-wrap"></div>
-      </div>
-
       <div id="page-users" class="page hidden">
         <div class="page-heading"><div><h2>Usuários</h2><p>Pessoas que podem acessar o sistema.</p></div></div>
         <form id="user-form" class="card form-grid" autocomplete="off">
@@ -221,7 +211,6 @@
       <input id="edit-appointment-id" type="hidden">
       <label>Prontuário <input id="edit-record" required></label>
       <label>Nome <input id="edit-patient-name" required></label>
-      <div id="edit-exams-wrap" class="exam-picker hidden"></div>
       <label>Observação <textarea id="edit-observation" rows="3"></textarea></label>
       <div class="form-actions"><button type="button" class="secondary" data-close="edit-dialog">Cancelar</button><button class="primary">Salvar</button></div>
     </form>

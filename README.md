@@ -5,10 +5,10 @@ Sistema web simples para organização de agendas de profissionais e exames.
 ## Recursos
 
 - Login com perfis de administrador e atendente.
-- Cadastro de profissionais, exames e usuários.
+- Cadastro de profissionais e usuários.
 - Agendas por data e turno, com horário em lista pronta e limite de vagas.
 - Agenda de consulta ou exame sempre vinculada a um profissional responsável.
-- Em agenda de exame, um paciente pode ter um ou vários exames marcados.
+- Agenda de exame sem exigir a seleção do exame específico do paciente.
 - Tela principal com lista compacta agrupada por data, filtros de profissional, tipo, turno e situação.
 - Cadastro de paciente por prontuário, nome e observação.
 - Bloqueio de paciente repetido e de agenda lotada.
