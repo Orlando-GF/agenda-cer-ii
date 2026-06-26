@@ -179,7 +179,8 @@
       var rows="";
       for(var i=0;i<Number(s.capacity);i++){
         var a=bySlot[i+1]||{};
-        rows+='<tr data-slot="'+i+'" data-appointment-id="'+(a.id||"")+'"><td class="slot-number col-num">'+(i+1)+'</td><td class="col-record"><input class="slot-record" value="'+esc(a.record_number||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td><td class="col-patient"><input class="slot-name" value="'+esc(a.patient_name||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td><td class="col-observation"><input class="slot-observation" value="'+esc(a.observation||"")+'" '+(closed?"disabled":"")+'></td><td class="no-print slot-actions col-actions">'+(closed?'':'<span class="slot-save-status"></span>'+(a.id?'<button class="table-action clear-slot delete-appointment" title="Limpar vaga" aria-label="Limpar vaga" data-id="'+a.id+'">🧹</button>':''))+'</td></tr>';
+        var hasContent=!!(a.id||a.record_number||a.patient_name||a.observation);
+        rows+='<tr data-slot="'+i+'" data-appointment-id="'+(a.id||"")+'"><td class="slot-number col-num">'+(i+1)+'</td><td class="col-record"><input class="slot-record" value="'+esc(a.record_number||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td><td class="col-patient"><input class="slot-name" value="'+esc(a.patient_name||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td><td class="col-observation"><input class="slot-observation" value="'+esc(a.observation||"")+'" '+(closed?"disabled":"")+'></td><td class="no-print slot-actions col-actions">'+(closed?'':'<button class="table-action clear-slot clear-row" title="Limpar vaga" aria-label="Limpar vaga" '+(a.id?'data-id="'+a.id+'"':"")+' '+(hasContent?"":"disabled")+'>🧹</button>')+'</td></tr>';
       }
       $("schedule-detail").innerHTML='<div class="dialog-body"><div class="dialog-header"><div><h2>'+esc(title)+' '+(closed?'<span class="status off">Encerrada</span>':'')+'</h2><p><span class="badge-line">'+kindLabel(s.kind)+periodLabel(s.period,s.time_label)+'</span> '+dateBr(s.schedule_date)+'</p></div><div class="dialog-actions no-print" id="schedule-actions"><button class="icon-button" id="schedule-settings" type="button" title="Configurações da agenda" aria-label="Configurações da agenda">⚙️</button><div class="settings-menu hidden" id="schedule-menu"><button type="button" id="edit-schedule">Editar agenda</button><button type="button" class="'+(closed?"":"danger-text")+'" id="toggle-schedule">'+(closed?"Reativar agenda":"Encerrar agenda")+'</button></div><button class="close-button" id="close-schedule" type="button">×</button></div></div><div class="detail-summary"><div class="summary-box"><strong>'+s.occupied+'</strong> agendados</div><div class="summary-box"><strong>'+available+'</strong> vagas disponíveis</div><button class="secondary no-print" id="print-button">Imprimir</button></div><h3>Vagas da agenda</h3><p class="muted no-print">'+(closed?"Esta agenda está encerrada. Reative para editar as vagas.":"Preencha direto na linha da vaga. As alterações são salvas automaticamente.")+'</p><div class="table-wrap slots-wrap"><table class="'+tableClass+'">'+colgroup+'<thead><tr><th class="col-num">#</th><th class="col-record">Prontuário</th><th class="col-patient">Paciente</th><th class="col-observation">Observação</th><th class="no-print col-actions"></th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="print-only">Impresso em '+new Date().toLocaleString("pt-BR")+'</p></div>';
       if(!$("schedule-dialog").open)$("schedule-dialog").showModal();
@@ -192,14 +193,19 @@
       document.querySelectorAll(".slot-record").forEach(function(el){el.addEventListener("blur",async function(e){await fillPatientRow(e);autoSaveSlot(e.target)})});
       document.querySelectorAll(".slot-name").forEach(function(el){el.addEventListener("blur",function(e){normalizeNameInput(e.target);autoSaveSlot(e.target)})});
       document.querySelectorAll(".slot-observation").forEach(function(el){el.addEventListener("blur",function(e){autoSaveSlot(e.target)})});
-      document.querySelectorAll(".delete-appointment").forEach(function(el){el.onclick=function(){removeAppointment(Number(el.getAttribute("data-id")))}}); 
+      document.querySelectorAll(".slot-record,.slot-name,.slot-observation").forEach(function(el){el.addEventListener("input",function(e){var row=e.target.closest("tr");if(row)updateClearButton(row)})});
+      document.querySelectorAll(".clear-row").forEach(function(el){el.onclick=function(){clearSlot(el)}}); 
     }catch(e){toast(e.message,true)}
   }
   async function requestCloseSchedule(){
+    var pending=partialRows();
+    if(pending.length&&!(await askConfirm("Vaga incompleta","Existe vaga com prontuário ou nome sem completar. Deseja fechar sem salvar?","Fechar mesmo")))return;
     $("schedule-dialog").close();
   }
   async function printSchedule(){
     if(!state.currentSchedule){toast("Abra uma agenda para imprimir.",true);return}
+    var pending=partialRows();
+    if(pending.length){toast("Complete ou limpe as vagas incompletas antes de imprimir.",true);return}
     var printUrl="/print/schedule/"+state.currentSchedule.schedule.id;
     var printWindow=window.open(printUrl,"_blank");
     if(printWindow)printWindow.focus();
@@ -212,48 +218,46 @@
   function autoSaveSlot(el){
     var row=el.closest("tr");if(!row)return;
     var record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim();
+    updateClearButton(row);
     if(!record&&!name)return;
     saveSlot(Number(row.getAttribute("data-slot")),{silent:true,refresh:false});
   }
-  function markSlotSaving(row,text,isError){
-    var status=row.querySelector(".slot-save-status");if(!status)return;
-    status.textContent=isError?text:"";
-    status.classList.toggle("slot-save-error",!!isError);
+  function partialRows(){
+    return Array.from(document.querySelectorAll("#schedule-dialog tbody tr")).filter(function(row){
+      var record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim();
+      return (record&&!name)||(!record&&name);
+    });
   }
-  function markSlotSaved(row){
-    markSlotSaving(row,"Salvo",false);
-    window.setTimeout(function(){var status=row.querySelector(".slot-save-status");if(status)status.textContent=""},1200);
+  function updateClearButton(row){
+    var btn=row.querySelector(".clear-row");if(!btn)return;
+    var id=row.getAttribute("data-appointment-id"),record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim(),observation=row.querySelector(".slot-observation").value.trim();
+    btn.disabled=!(id||record||name||observation);
   }
-  function addClearButton(row,id){
-    if(row.querySelector(".delete-appointment"))return;
-    var actions=row.querySelector(".slot-actions");
-    if(!actions)return;
-    var btn=document.createElement("button");
-    btn.className="table-action clear-slot delete-appointment";
-    btn.type="button";
-    btn.title="Limpar vaga";
-    btn.setAttribute("aria-label","Limpar vaga");
-    btn.setAttribute("data-id",id);
-    btn.textContent="🧹";
-    btn.onclick=function(){removeAppointment(Number(id))};
-    actions.appendChild(btn);
+  async function clearSlot(btn){
+    var row=btn.closest("tr");if(!row)return;
+    var id=row.getAttribute("data-appointment-id");
+    if(id){await removeAppointment(Number(id));return}
+    row.querySelector(".slot-record").value="";
+    row.querySelector(".slot-name").value="";
+    row.querySelector(".slot-observation").value="";
+    updateClearButton(row);
   }
   async function saveSlot(index,options){
     options=options||{};
     var row=document.querySelector('tr[data-slot="'+index+'"]');if(!row)return;
     normalizeNameInput(row.querySelector(".slot-name"));
     var id=row.getAttribute("data-appointment-id"),record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim(),observation=row.querySelector(".slot-observation").value.trim();
-    if(!record||!name){if(!options.silent)toast("Informe prontuário e nome do paciente.",true);else markSlotSaving(row,"Falta dados",true);return}
+    updateClearButton(row);
+    if(!record||!name){if(!options.silent)toast("Informe prontuário e nome do paciente.",true);return}
     var payload={schedule_id:state.currentSchedule.schedule.id,slot_number:index+1,record_number:record,patient_name:name,observation:observation};
-    markSlotSaving(row,"Salvando...",false);
     try{
       if(id)await api("/api/appointments/"+id,{method:"PATCH",body:JSON.stringify(payload)});
-      else{var created=await api("/api/appointments",{method:"POST",body:JSON.stringify(payload)});row.setAttribute("data-appointment-id",created.id);addClearButton(row,created.id)}
-      markSlotSaved(row);
+      else{var created=await api("/api/appointments",{method:"POST",body:JSON.stringify(payload)});row.setAttribute("data-appointment-id",created.id);var btn=row.querySelector(".clear-row");if(btn)btn.setAttribute("data-id",created.id)}
+      updateClearButton(row);
       refreshSchedulesSoon();
       if(!options.silent)toast("Vaga salva.");
       if(options.refresh!==false)openSchedule(state.currentSchedule.schedule.id);
-    }catch(err){markSlotSaving(row,"Erro",true);if(!options.silent)toast(err.message,true)}
+    }catch(err){if(!options.silent)toast(err.message,true);else toast("Não foi possível salvar uma vaga.",true)}
   }
   async function removeAppointment(id){if(!await askConfirm("Limpar vaga","Remover este paciente desta vaga?","Limpar"))return;try{await api("/api/appointments/"+id,{method:"DELETE"});toast("Vaga limpa.");refreshSchedulesSoon();openSchedule(state.currentSchedule.schedule.id)}catch(e){toast(e.message,true)}}
   async function toggleSchedule(id,isClosed){

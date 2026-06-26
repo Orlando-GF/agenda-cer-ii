@@ -55,8 +55,8 @@ th,td{padding:9px 8px}
 .table-action{margin-right:0}
 .clear-slot{width:28px;height:28px;border-radius:5px;background:#edf1f0!important;color:var(--ink)!important;text-decoration:none!important;font-size:15px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0!important}
 .clear-slot:hover{background:#f8e5e5!important;color:var(--red)!important}
-.slot-save-status{min-width:0;color:var(--muted);font-size:11px}
-.slot-save-status.slot-save-error{color:var(--red)}
+.clear-slot:disabled{opacity:.28;cursor:not-allowed;background:#edf1f0!important;color:var(--muted)!important}
+.clear-slot:disabled:hover{background:#edf1f0!important;color:var(--muted)!important}
 /* Organização geral das páginas: conteúdo centralizado e componentes consistentes */
 .content{max-width:none;padding-left:clamp(20px,2.4vw,42px);padding-right:clamp(20px,2.4vw,42px)}
 .page{width:min(100%,1440px);margin:0 auto}
