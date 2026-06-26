@@ -21,6 +21,7 @@
   var periodLabel=function(period,time){return'<span class="period-badge '+esc(period)+'">'+esc(periodName[period]||period)+(time?" • "+esc(time):"")+'</span>'};
   function today(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return d.getFullYear()+"-"+m+"-"+day}
   function oneMonthAhead(){var d=new Date();d.setMonth(d.getMonth()+1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+  function nextDate(value){if(!value)return today();var p=value.split("-"),d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));d.setDate(d.getDate()+1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
   async function api(path,options){
     options=options||{};options.headers=Object.assign({"content-type":"application/json"},options.headers||{});
     var res=await fetch(path,options),data=await res.json().catch(function(){return{}});
@@ -149,7 +150,10 @@
     e.preventDefault();var kind=$("schedule-kind").value;
     try{
       await api("/api/schedules",{method:"POST",body:JSON.stringify({kind:kind,professional_id:$("schedule-professional").value,schedule_date:$("schedule-date").value,period:$("schedule-period").value,time_label:$("schedule-time").value,capacity:$("schedule-capacity").value,notes:$("schedule-notes").value})});
-      toast("Agenda criada.");this.reset();$("schedule-date").value=today();$("schedule-period").value="";$("schedule-capacity").value=20;updateScheduleKind();go("agenda");
+      toast("Agenda criada. Você pode cadastrar a próxima.");
+      $("schedule-notes").value="";
+      $("schedule-date").value=nextDate($("schedule-date").value);
+      $("schedule-date").focus();
     }catch(err){toast(err.message,true)}
   });
   async function openSchedule(id){
