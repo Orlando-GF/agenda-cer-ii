@@ -234,7 +234,7 @@ async function listSchedules(env: Env, url: URL): Promise<Response> {
      LEFT JOIN appointments a ON a.schedule_id = s.id
      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
      GROUP BY s.id
-     ORDER BY s.schedule_date ${orderDirection}, CASE s.period WHEN 'manha' THEN 1 WHEN 'tarde' THEN 2 WHEN 'noite' THEN 3 ELSE 4 END, s.time_label
+     ORDER BY s.schedule_date ${orderDirection}, lower(p.name), CASE s.period WHEN 'manha' THEN 1 WHEN 'tarde' THEN 2 WHEN 'noite' THEN 3 ELSE 4 END, s.time_label
      LIMIT ? OFFSET ?`,
   ).bind(...params, limit + 1, offset).all<Record<string, unknown> & { schedule_date: string; active: number }>();
   const rows = result.results ?? [];

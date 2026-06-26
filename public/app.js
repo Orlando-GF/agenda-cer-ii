@@ -132,9 +132,14 @@
     var dates=Object.keys(groups).sort();
     if($("filter-status").value!=="active")dates.reverse();
     return dates.map(function(date){
-      var items=groups[date].map(function(s){
-        var occupied=Number(s.occupied),cap=Number(s.capacity),pct=Math.min(100,occupied/cap*100);
-        return '<button class="agenda-row '+(s.kind==="exame"?"exam ":"consult ")+(s.active?"":"closed")+'" data-schedule="'+s.id+'"><span class="agenda-row-main"><strong>'+kindLabel(s.kind)+' '+periodLabel(s.period,s.time_label)+' '+esc(s.professional_name||"Profissional não informado")+'</strong></span><span class="agenda-progress"><span><i style="width:'+pct+'%"></i></span><strong>'+occupied+'/'+cap+' vagas</strong></span>'+(s.active?"":'<span class="status off">Encerrada</span>')+'</button>';
+      var byProfessional={};
+      groups[date].forEach(function(s){var name=s.professional_name||"Profissional não informado";(byProfessional[name]=byProfessional[name]||[]).push(s)});
+      var items=Object.keys(byProfessional).sort(function(a,b){return a.localeCompare(b,"pt-BR")}).map(function(name){
+        var rows=byProfessional[name].map(function(s){
+          var occupied=Number(s.occupied),cap=Number(s.capacity),pct=Math.min(100,occupied/cap*100);
+          return '<button class="agenda-row '+(s.kind==="exame"?"exam ":"consult ")+(s.active?"":"closed")+'" data-schedule="'+s.id+'"><span class="agenda-row-main"><strong>'+kindLabel(s.kind)+' '+periodLabel(s.period,s.time_label)+'</strong></span><span class="agenda-progress"><span><i style="width:'+pct+'%"></i></span><strong>'+occupied+'/'+cap+' vagas</strong></span>'+(s.active?"":'<span class="status off">Encerrada</span>')+'</button>';
+        }).join("");
+        return '<div class="agenda-professional"><h4>'+esc(name)+'</h4>'+rows+'</div>';
       }).join("");
       return '<section class="agenda-day card"><h3>'+dateBr(date)+' <span>'+weekdayBr(date)+'</span></h3><div class="agenda-day-list">'+items+'</div></section>';
     }).join("");
