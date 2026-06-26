@@ -107,7 +107,7 @@
       var params=new URLSearchParams({status:status,page:String(state.schedulePage),professional:$("filter-professional").value,kind:$("filter-kind").value,period:$("filter-period").value});
       if(status!=="active"){params.set("from",$("filter-from").value);params.set("to",$("filter-to").value)}
       var data=await api("/api/schedules?"+params.toString()),rows=data.items||[];
-      $("schedule-list").classList.add("compact-list");$("schedule-list").classList.remove("schedule-grid");
+      $("schedule-list").classList.add("compact-list");
       $("schedule-list").innerHTML=rows.length?renderScheduleList(rows):'<div class="empty-state card"><h3>Nenhuma agenda encontrada</h3><p>Ajuste os filtros ou crie uma nova agenda.</p></div>';
       renderPagination(data);
       document.querySelectorAll("[data-schedule]").forEach(function(el){el.addEventListener("click",function(){openSchedule(Number(el.getAttribute("data-schedule")))})});
@@ -250,15 +250,6 @@
       if(options.refresh!==false)openSchedule(state.currentSchedule.schedule.id);
     }catch(err){markSlotSaving(row,"Erro",true);if(!options.silent)toast(err.message,true)}
   }
-  function editAppointment(id){
-    var a=state.currentSchedule.appointments.find(function(x){return Number(x.id)===id});if(!a)return;
-    $("edit-appointment-id").value=id;$("edit-record").value=a.record_number;$("edit-patient-name").value=a.patient_name;$("edit-observation").value=a.observation||"";$("edit-dialog").showModal();
-  }
-  $("edit-appointment-form").addEventListener("submit",async function(e){
-    e.preventDefault();
-    normalizeNameInput($("edit-patient-name"));
-    try{await api("/api/appointments/"+$("edit-appointment-id").value,{method:"PATCH",body:JSON.stringify({record_number:$("edit-record").value,patient_name:$("edit-patient-name").value,observation:$("edit-observation").value})});$("edit-dialog").close();toast("Paciente atualizado.");openSchedule(state.currentSchedule.schedule.id)}catch(err){toast(err.message,true)}
-  });
   async function removeAppointment(id){if(!await askConfirm("Limpar vaga","Remover este paciente desta vaga?","Limpar"))return;try{await api("/api/appointments/"+id,{method:"DELETE"});toast("Vaga limpa.");refreshSchedulesSoon();openSchedule(state.currentSchedule.schedule.id)}catch(e){toast(e.message,true)}}
   async function toggleSchedule(id,isClosed){
     if(isClosed){
@@ -308,7 +299,7 @@
     if(!rows.length)return"<p>Nenhum cadastro ainda.</p>";
     return'<table><thead><tr><th>Nome</th><th>Especialidade</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.specialty)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action edit-catalog" data-type="'+type+'" data-id="'+x.id+'">Editar</button><button class="table-action toggle-catalog" data-type="'+type+'" data-id="'+x.id+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
   }
-  ["professional-name","professional-specialty","user-name","edit-patient-name","catalog-edit-name","catalog-edit-specialty"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeNameInput(el)})});
+  ["professional-name","professional-specialty","user-name","catalog-edit-name","catalog-edit-specialty"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeNameInput(el)})});
   $("professional-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("professional-name"));normalizeNameInput($("professional-specialty"));try{await api("/api/professionals",{method:"POST",body:JSON.stringify({name:$("professional-name").value,specialty:$("professional-specialty").value})});this.reset();toast("Profissional cadastrado.");loadProfessionals(true)}catch(err){toast(err.message,true)}});
   document.addEventListener("click",async function(e){
     if(!e.target.classList.contains("toggle-catalog"))return;
