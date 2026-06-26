@@ -151,9 +151,12 @@
     try{
       await api("/api/schedules",{method:"POST",body:JSON.stringify({kind:kind,professional_id:$("schedule-professional").value,schedule_date:$("schedule-date").value,period:$("schedule-period").value,time_label:$("schedule-time").value,capacity:$("schedule-capacity").value,notes:$("schedule-notes").value})});
       toast("Agenda criada. Você pode cadastrar a próxima.");
-      $("schedule-notes").value="";
       $("schedule-date").value=nextDate($("schedule-date").value);
-      $("schedule-date").focus();
+      $("schedule-professional").value="";
+      $("schedule-period").value="";
+      $("schedule-time").value="";
+      $("schedule-notes").value="";
+      $("schedule-professional").focus();
     }catch(err){toast(err.message,true)}
   });
   async function openSchedule(id){
