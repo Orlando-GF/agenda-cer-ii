@@ -294,6 +294,7 @@ async function printSchedulePage(request: Request, env: Env, id: number): Promis
     body{font-family:Arial,sans-serif;margin:24px;color:#111}
     .print-bar{display:flex;gap:10px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #ddd}
     .print-bar button{border:0;border-radius:5px;padding:9px 14px;font-weight:bold;background:#176b5b;color:#fff;cursor:pointer}
+    .print-bar button.secondary{background:#e8eeee;color:#20312d}
     .print-bar small{align-self:center;color:#555}
     h1{font-size:22px;margin:0 0 6px}p{margin:0 0 18px;color:#444}
     .summary{display:flex;gap:12px;margin:14px 0}.box{border:1px solid #ccc;padding:8px 10px}
@@ -303,11 +304,18 @@ async function printSchedulePage(request: Request, env: Env, id: number): Promis
   </style>
 </head>
 <body>
-  <div class="print-bar"><button onclick="window.print()">Imprimir</button><small>Se não abrir a janela, use Ctrl+P nesta página.</small></div>
+  <div class="print-bar"><button onclick="window.print()">Imprimir</button><button class="secondary" onclick="closePrintPage()">Fechar</button><small>Se não abrir a janela, use Ctrl+P nesta página.</small></div>
   <h1>${html(schedule.professional_name || "Profissional não informado")}</h1>
   <p>${isExam ? "Agenda de exame" : "Consulta"} • ${html(schedule.schedule_date.split("-").reverse().join("/"))} • ${html(periodName[schedule.period] || schedule.period)}${schedule.time_label ? ` • ${html(schedule.time_label)}` : ""}</p>
   <div class="summary"><div class="box"><strong>${html(schedule.occupied)}</strong> agendados</div><div class="box"><strong>${html(schedule.capacity)}</strong> vagas</div></div>
   <table><thead><tr><th class="num">#</th><th class="record">Prontuário</th><th>Paciente</th>${isExam ? "<th>Exames</th>" : ""}<th class="obs">Observação</th></tr></thead><tbody>${rows}</tbody></table>
+  <script>
+    function closePrintPage(){
+      if(window.opener){ window.close(); return; }
+      if(history.length > 1){ history.back(); return; }
+      location.href = "/";
+    }
+  </script>
 </body>
 </html>`;
   return new Response(markup, { headers: { "content-type": "text/html; charset=utf-8" } });

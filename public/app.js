@@ -215,7 +215,10 @@
       toast("Marque o exame antes de imprimir.",true);
       return;
     }
-    window.location.href="/print/schedule/"+state.currentSchedule.schedule.id;
+    var printUrl="/print/schedule/"+state.currentSchedule.schedule.id;
+    var printWindow=window.open(printUrl,"_blank");
+    if(printWindow)printWindow.focus();
+    else window.location.href=printUrl;
   }
   async function fillPatientRow(e){
     var row=e.target.closest("tr"),q=e.target.value.trim();if(!row||!q)return;
