@@ -17,7 +17,17 @@
   var periodName={manha:"Manhã",tarde:"Tarde",noite:"Noite"};
   var dateBr=function(v){if(!v)return"";var p=v.split("-");return p[2]+"/"+p[1]+"/"+p[0]};
   var weekdayBr=function(v){var p=v.split("-"),d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));return ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"][d.getDay()]};
-  var kindLabel=function(kind){return kind==="exame"?'<span class="kind-badge exam">Exame</span>':'<span class="kind-badge consult">Consulta</span>'};
+  var kindLabel=function(kind){
+    if(kind==="exame")return'<span class="kind-badge exam">Exame</span>';
+    if(kind==="orientacao")return'<span class="kind-badge orientation">Orientação familiar</span>';
+    return'<span class="kind-badge consult">Consulta</span>';
+  };
+  var kindClass=function(kind){return kind==="exame"?"exam":kind==="orientacao"?"orientation":"consult"};
+  var professionalLabel=function(kind){
+    if(kind==="exame")return"Profissional responsável pelo exame";
+    if(kind==="orientacao")return"Profissional da orientação";
+    return"Profissional da consulta";
+  };
   var periodLabel=function(period,time){return'<span class="period-badge '+esc(period)+'">'+esc(periodName[period]||period)+(time?" • "+esc(time):"")+'</span>'};
   function today(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return d.getFullYear()+"-"+m+"-"+day}
   function oneMonthAgo(){var d=new Date();d.setMonth(d.getMonth()-1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
@@ -137,7 +147,7 @@
       var items=Object.keys(byProfessional).sort(function(a,b){return a.localeCompare(b,"pt-BR")}).map(function(name){
         var rows=byProfessional[name].map(function(s){
           var occupied=Number(s.occupied),cap=Number(s.capacity),pct=Math.min(100,occupied/cap*100);
-          return '<button class="agenda-row '+(s.kind==="exame"?"exam ":"consult ")+(s.active?"":"closed")+'" data-schedule="'+s.id+'"><span class="agenda-row-main"><strong>'+kindLabel(s.kind)+' '+periodLabel(s.period,s.time_label)+'</strong></span><span class="agenda-progress"><span><i style="width:'+pct+'%"></i></span><strong>'+occupied+'/'+cap+' vagas</strong></span>'+(s.active?"":'<span class="status off">Encerrada</span>')+'</button>';
+          return '<button class="agenda-row '+kindClass(s.kind)+' '+(s.active?"":"closed")+'" data-schedule="'+s.id+'"><span class="agenda-row-main"><strong>'+kindLabel(s.kind)+' '+periodLabel(s.period,s.time_label)+'</strong></span><span class="agenda-progress"><span><i style="width:'+pct+'%"></i></span><strong>'+occupied+'/'+cap+' vagas</strong></span>'+(s.active?"":'<span class="status off">Encerrada</span>')+'</button>';
         }).join("");
         return '<div class="agenda-professional"><h4>'+esc(name)+'</h4>'+rows+'</div>';
       }).join("");
@@ -154,7 +164,7 @@
   });
   function updateScheduleKind(){
     var first=$("professional-select-wrap").firstChild;
-    if(first)first.textContent=$("schedule-kind").value==="exame"?"Profissional responsável pelo exame":"Profissional da consulta";
+    if(first)first.textContent=professionalLabel($("schedule-kind").value);
   }
   $("schedule-form").addEventListener("submit",async function(e){
     e.preventDefault();var kind=$("schedule-kind").value;
@@ -288,7 +298,7 @@
   }
   function updateEditScheduleKind(){
     var first=$("schedule-edit-professional-wrap").firstChild;
-    if(first)first.textContent=$("schedule-edit-kind").value==="exame"?"Profissional responsável pelo exame":"Profissional da consulta";
+    if(first)first.textContent=professionalLabel($("schedule-edit-kind").value);
   }
   $("schedule-edit-kind").addEventListener("change",updateEditScheduleKind);
   $("schedule-edit-form").addEventListener("submit",async function(e){

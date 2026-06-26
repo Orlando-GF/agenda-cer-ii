@@ -52,6 +52,17 @@ function publicPatientRecord(record: unknown): string {
   return value.toLowerCase().startsWith("novo-") ? "Novo" : value;
 }
 
+function scheduleKind(value: unknown): "profissional" | "exame" | "orientacao" {
+  const kind = clean(value, 20);
+  return kind === "exame" || kind === "orientacao" ? kind : "profissional";
+}
+
+function scheduleKindLabel(kind: string): string {
+  if (kind === "exame") return "Agenda de exame";
+  if (kind === "orientacao") return "Orientação familiar";
+  return "Consulta";
+}
+
 function isInternalNewPatientRecord(record: unknown): boolean {
   return String(record ?? "").toLowerCase().startsWith("novo-");
 }
@@ -234,7 +245,7 @@ async function listSchedules(env: Env, url: URL): Promise<Response> {
     where.push("s.professional_id = ?");
     params.push(professional);
   }
-  if (kind === "profissional" || kind === "exame") {
+  if (["profissional", "exame", "orientacao"].includes(kind)) {
     where.push("s.kind = ?");
     params.push(kind);
   }
@@ -305,7 +316,6 @@ async function printSchedulePage(request: Request, env: Env, id: number): Promis
     appointments: Array<Record<string, unknown> & { slot_number: number; record_number: string; patient_name: string; observation: string }>;
   };
   const schedule = data.schedule;
-  const isExam = schedule.kind === "exame";
   const rowsBySlot = new Map<number, typeof data.appointments[number]>();
   for (const appointment of data.appointments) rowsBySlot.set(Number(appointment.slot_number), appointment);
   const capacity = Number(schedule.capacity);
@@ -336,7 +346,7 @@ async function printSchedulePage(request: Request, env: Env, id: number): Promis
 <body>
   <div class="print-bar"><button onclick="window.print()">Imprimir</button><button class="secondary" onclick="closePrintPage()">Fechar</button><small>Se não abrir a janela, use Ctrl+P nesta página.</small></div>
   <h1>${html(schedule.professional_name || "Profissional não informado")}</h1>
-  <p>${isExam ? "Agenda de exame" : "Consulta"} • ${html(schedule.schedule_date.split("-").reverse().join("/"))} • ${html(periodName[schedule.period] || schedule.period)}${schedule.time_label ? ` • ${html(schedule.time_label)}` : ""}</p>
+  <p>${html(scheduleKindLabel(schedule.kind))} • ${html(schedule.schedule_date.split("-").reverse().join("/"))} • ${html(periodName[schedule.period] || schedule.period)}${schedule.time_label ? ` • ${html(schedule.time_label)}` : ""}</p>
   <div class="summary"><div class="box"><strong>${html(schedule.occupied)}</strong> agendados</div><div class="box"><strong>${html(schedule.capacity)}</strong> vagas</div></div>
   <table><thead><tr><th class="num">#</th><th class="record">Prontuário</th><th>Paciente</th><th class="obs">Observação</th></tr></thead><tbody>${rows}</tbody></table>
   <script>
@@ -431,7 +441,7 @@ async function api(request: Request, env: Env): Promise<Response> {
   if (path === "/api/schedules" && request.method === "GET") return listSchedules(env, url);
   if (path === "/api/schedules" && request.method === "POST") {
     const data = await body(request);
-    const kind = data.kind === "exame" ? "exame" : "profissional";
+    const kind = scheduleKind(data.kind);
     const date = clean(data.schedule_date, 10);
     const period = clean(data.period, 10);
     const capacity = Math.max(1, Number(data.capacity) || 20);
@@ -466,7 +476,7 @@ async function api(request: Request, env: Env): Promise<Response> {
       data.capacity !== undefined ||
       data.notes !== undefined
     ) {
-      const kind = data.kind === "exame" ? "exame" : "profissional";
+      const kind = scheduleKind(data.kind);
       const date = clean(data.schedule_date, 10);
       const period = clean(data.period, 10);
       const capacity = Math.max(1, Number(data.capacity) || 20);

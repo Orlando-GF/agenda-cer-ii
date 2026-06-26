@@ -68,6 +68,7 @@
               <option value="">Todos</option>
               <option value="profissional">Consulta</option>
               <option value="exame">Exame</option>
+              <option value="orientacao">Orientação familiar</option>
             </select>
           </label>
           <label>Turno
@@ -92,10 +93,10 @@
       </div>
 
       <div id="page-new-schedule" class="page hidden">
-        <div class="page-heading"><div><h2>Nova agenda</h2><p>Escolha se a agenda será para consulta ou exame.</p></div></div>
+        <div class="page-heading"><div><h2>Nova agenda</h2><p>Escolha se a agenda será para consulta, exame ou orientação familiar.</p></div></div>
         <form id="schedule-form" class="card form-grid">
           <label>Tipo de agenda
-            <select id="schedule-kind"><option value="profissional">Consulta</option><option value="exame">Exame</option></select>
+            <select id="schedule-kind"><option value="profissional">Consulta</option><option value="exame">Exame</option><option value="orientacao">Orientação familiar</option></select>
           </label>
           <label id="professional-select-wrap">Profissional da consulta
             <select id="schedule-professional" required></select>
@@ -164,7 +165,7 @@
       <h3>Editar agenda</h3>
       <input id="schedule-edit-id" type="hidden">
       <label>Tipo de agenda
-        <select id="schedule-edit-kind"><option value="profissional">Consulta</option><option value="exame">Exame</option></select>
+        <select id="schedule-edit-kind"><option value="profissional">Consulta</option><option value="exame">Exame</option><option value="orientacao">Orientação familiar</option></select>
       </label>
       <label id="schedule-edit-professional-wrap">Profissional
         <select id="schedule-edit-professional" required></select>
