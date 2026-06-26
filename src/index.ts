@@ -39,6 +39,23 @@ function titleCaseText(value: unknown, max = 200): string {
     .join(" ");
 }
 
+function isNewPatientRecord(record: string): boolean {
+  return record.trim().toLowerCase() === "novo";
+}
+
+function newPatientRecordToken(): string {
+  return `novo-${randomToken(8)}`;
+}
+
+function publicPatientRecord(record: unknown): string {
+  const value = String(record ?? "");
+  return value.toLowerCase().startsWith("novo-") ? "Novo" : value;
+}
+
+function isInternalNewPatientRecord(record: unknown): boolean {
+  return String(record ?? "").toLowerCase().startsWith("novo-");
+}
+
 function todaySaoPaulo(): string {
   return new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
@@ -268,7 +285,9 @@ async function scheduleDetails(env: Env, id: number): Promise<Response> {
      WHERE a.schedule_id = ?
      ORDER BY a.slot_number`,
   ).bind(id).all<Record<string, unknown> & { id: number }>();
-  return json({ schedule: normalizedSchedule, appointments: appointments.results ?? [] });
+  const rows = appointments.results ?? [];
+  for (const row of rows) row.record_number = publicPatientRecord(row.record_number);
+  return json({ schedule: normalizedSchedule, appointments: rows });
 }
 
 async function printSchedulePage(request: Request, env: Env, id: number): Promise<Response> {
@@ -475,9 +494,9 @@ async function api(request: Request, env: Env): Promise<Response> {
 
   if (path === "/api/patients/search" && request.method === "GET") {
     const q = clean(url.searchParams.get("q"), 100);
-    if (!q) return json([]);
+    if (!q || isNewPatientRecord(q)) return json([]);
     const result = await env.DB.prepare(
-      "SELECT id, record_number, name FROM patients WHERE record_number LIKE ? OR name LIKE ? ORDER BY name LIMIT 20",
+      "SELECT id, record_number, name FROM patients WHERE record_number NOT LIKE 'novo-%' AND (record_number LIKE ? OR name LIKE ?) ORDER BY name LIMIT 20",
     ).bind(`%${q}%`, `%${q}%`).all();
     return json(result.results);
   }
@@ -498,16 +517,25 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (!schedule) return error("Agenda não encontrada.", 404);
     if (slotNumber < 1 || slotNumber > Number(schedule.capacity)) return error("Número da vaga inválido para esta agenda.");
     if (Number(schedule.occupied) >= Number(schedule.capacity)) return error("Esta agenda já está lotada.", 409);
-    await env.DB.prepare(
-      `INSERT INTO patients (record_number, name) VALUES (?, ?)
-       ON CONFLICT(record_number) DO UPDATE SET name = excluded.name, updated_at = CURRENT_TIMESTAMP`,
-    ).bind(record, patientName).run();
-    const patient = await env.DB.prepare("SELECT id FROM patients WHERE record_number = ?").bind(record).first<{ id: number }>();
+    let patientId: number;
+    if (isNewPatientRecord(record)) {
+      const patientResult = await env.DB.prepare(
+        "INSERT INTO patients (record_number, name) VALUES (?, ?)",
+      ).bind(newPatientRecordToken(), patientName).run();
+      patientId = Number(patientResult.meta.last_row_id);
+    } else {
+      await env.DB.prepare(
+        `INSERT INTO patients (record_number, name) VALUES (?, ?)
+         ON CONFLICT(record_number) DO UPDATE SET name = excluded.name, updated_at = CURRENT_TIMESTAMP`,
+      ).bind(record, patientName).run();
+      const patient = await env.DB.prepare("SELECT id FROM patients WHERE record_number = ?").bind(record).first<{ id: number }>();
+      patientId = Number(patient?.id);
+    }
     try {
       const result = await env.DB.prepare(
         "INSERT INTO appointments (schedule_id, slot_number, patient_id, observation, created_by) VALUES (?, ?, ?, ?, ?)",
-      ).bind(scheduleId, slotNumber, patient!.id, clean(data.observation, 500), user.id).run();
-      await audit(env, user, "appointment.create", "appointment", Number(result.meta.last_row_id), { scheduleId, slotNumber, record, patientName });
+      ).bind(scheduleId, slotNumber, patientId, clean(data.observation, 500), user.id).run();
+      await audit(env, user, "appointment.create", "appointment", Number(result.meta.last_row_id), { scheduleId, slotNumber, record: isNewPatientRecord(record) ? "Novo" : record, patientName });
       return json({ id: result.meta.last_row_id }, 201);
     } catch {
       return error("Este prontuário já está nessa agenda ou esta vaga já está ocupada.", 409);
@@ -520,23 +548,51 @@ async function api(request: Request, env: Env): Promise<Response> {
     const patientName = titleCaseText(data.patient_name, 150);
     if (!record || !patientName) return error("Informe prontuário e nome.");
     const appointment = await env.DB.prepare(
-      `SELECT a.patient_id, s.kind, s.active, s.schedule_date
+      `SELECT a.patient_id, a.schedule_id, p.record_number, s.kind, s.active, s.schedule_date
        FROM appointments a
+       JOIN patients p ON p.id = a.patient_id
        JOIN schedules s ON s.id = a.schedule_id
        WHERE a.id = ?`,
-    ).bind(Number(appointmentId[1])).first<{ patient_id: number; kind: string; active: number; schedule_date: string }>();
+    ).bind(Number(appointmentId[1])).first<{ patient_id: number; schedule_id: number; record_number: string; kind: string; active: number; schedule_date: string }>();
     if (!appointment) return error("Agendamento não encontrado.", 404);
     if (Number(appointment.active) !== 1 || appointment.schedule_date < todaySaoPaulo()) return error("Esta agenda está encerrada.");
     try {
-      const statements = [
-        env.DB.prepare("UPDATE patients SET record_number = ?, name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(record, patientName, appointment.patient_id),
-        env.DB.prepare("UPDATE appointments SET observation = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(clean(data.observation, 500), Number(appointmentId[1])),
-      ];
+      const statements: D1PreparedStatement[] = [];
+      if (isNewPatientRecord(record)) {
+        if (isInternalNewPatientRecord(appointment.record_number)) {
+          statements.push(
+            env.DB.prepare("UPDATE patients SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(patientName, appointment.patient_id),
+            env.DB.prepare("UPDATE appointments SET observation = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(clean(data.observation, 500), Number(appointmentId[1])),
+          );
+        } else {
+          const patientResult = await env.DB.prepare(
+            "INSERT INTO patients (record_number, name) VALUES (?, ?)",
+          ).bind(newPatientRecordToken(), patientName).run();
+          statements.push(
+            env.DB.prepare("UPDATE appointments SET patient_id = ?, observation = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+              .bind(Number(patientResult.meta.last_row_id), clean(data.observation, 500), Number(appointmentId[1])),
+          );
+        }
+      } else {
+        const existingPatient = await env.DB.prepare("SELECT id FROM patients WHERE record_number = ?").bind(record).first<{ id: number }>();
+        if (existingPatient && Number(existingPatient.id) !== Number(appointment.patient_id)) {
+          statements.push(
+            env.DB.prepare("UPDATE patients SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(patientName, existingPatient.id),
+            env.DB.prepare("UPDATE appointments SET patient_id = ?, observation = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+              .bind(existingPatient.id, clean(data.observation, 500), Number(appointmentId[1])),
+          );
+        } else {
+          statements.push(
+            env.DB.prepare("UPDATE patients SET record_number = ?, name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(record, patientName, appointment.patient_id),
+            env.DB.prepare("UPDATE appointments SET observation = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(clean(data.observation, 500), Number(appointmentId[1])),
+          );
+        }
+      }
       await env.DB.batch(statements);
-      await audit(env, user, "appointment.update", "appointment", Number(appointmentId[1]), { record, patientName });
+      await audit(env, user, "appointment.update", "appointment", Number(appointmentId[1]), { record: isNewPatientRecord(record) ? "Novo" : record, patientName });
       return json({ ok: true });
     } catch {
-      return error("Já existe outro paciente com esse prontuário.", 409);
+      return error("Já existe outro paciente com esse prontuário nesta agenda.", 409);
     }
   }
   if (appointmentId && request.method === "DELETE") {

@@ -213,6 +213,7 @@
   }
   async function fillPatientRow(e){
     var row=e.target.closest("tr"),q=e.target.value.trim();if(!row||!q)return;
+    if(q.toLowerCase()==="novo")return;
     try{var list=await api("/api/patients/search?q="+encodeURIComponent(q));var exact=list.find(function(x){return x.record_number.toLowerCase()===q.toLowerCase()});if(exact)row.querySelector(".slot-name").value=exact.name}catch(err){}
   }
   function autoSaveSlot(el){
