@@ -53,12 +53,13 @@ th,td{padding:9px 8px}
 .slots-table .col-record{width:108px!important}
 .slots-table .col-patient{width:44%!important}
 .slots-table .col-observation{width:auto!important}
-.slots-table .col-actions{width:74px!important}
-.slot-actions{display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
+.slots-table .col-actions{width:38px!important}
+.slots-table th.col-actions,.slots-table td.col-actions{padding-left:2px!important;padding-right:2px!important}
+.slot-actions{display:flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap}
 .table-action{margin-right:0}
 .clear-slot{width:28px;height:28px;border-radius:5px;background:#edf1f0!important;color:var(--ink)!important;text-decoration:none!important;font-size:15px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0!important}
 .clear-slot:hover{background:#f8e5e5!important;color:var(--red)!important}
-.slot-save-status{min-width:0;color:var(--muted);font-size:12px}
+.slot-save-status{min-width:0;color:var(--muted);font-size:11px}
 .slot-save-status.slot-save-error{color:var(--red)}
 /* Organização geral das páginas: conteúdo centralizado e componentes consistentes */
 .content{max-width:none;padding-left:clamp(20px,2.4vw,42px);padding-right:clamp(20px,2.4vw,42px)}
