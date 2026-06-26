@@ -45,12 +45,14 @@ th,td{padding:9px 8px}
 .kind-badge,.status{border-radius:5px}
 .icon-button{border-radius:5px}
 .toast{border-radius:5px}
-/* Evita barra horizontal no preenchimento de vagas */
-.slots-wrap{overflow-y:auto;overflow-x:hidden;padding-right:14px}
-.slots-table{width:calc(100% - 4px);min-width:0}
+/* Tabela de vagas adaptável ao modal, com rolagem vertical sem cortar a linha */
+.slots-wrap{overflow-y:auto;overflow-x:hidden;padding-right:0;scrollbar-gutter:stable}
+.slots-table{width:100%;min-width:0}
 .consultation-slots{min-width:0}
 .slots-table .col-num{width:36px!important}
 .slots-table .col-record{width:108px!important}
+.slots-table .col-patient{width:44%!important}
+.slots-table .col-observation{width:auto!important}
 .slots-table .col-actions{width:74px!important}
 .slot-actions{display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
 .table-action{margin-right:0}
