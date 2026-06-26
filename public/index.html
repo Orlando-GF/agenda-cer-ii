@@ -52,12 +52,12 @@
     <section class="content">
       <div id="page-agenda" class="page">
         <div class="page-heading">
-          <div><h2>Agendas</h2><p>Escolha um período para visualizar.</p></div>
+          <div><h2>Agendas</h2><p>Acompanhe as agendas ativas e consulte o histórico quando precisar.</p></div>
           <button class="primary" data-go="new-schedule">＋ Nova agenda</button>
         </div>
         <div class="filters card">
-          <label>De <input type="date" id="filter-from"></label>
-          <label>Até <input type="date" id="filter-to"></label>
+          <label class="date-filter">De <input type="date" id="filter-from"></label>
+          <label class="date-filter">Até <input type="date" id="filter-to"></label>
           <label>Profissional
             <select id="filter-professional">
               <option value="">Todos</option>
@@ -85,15 +85,10 @@
               <option value="all">Todas</option>
             </select>
           </label>
-          <label>Visualização
-            <select id="filter-view">
-              <option value="list">Lista compacta</option>
-              <option value="cards">Cards</option>
-            </select>
-          </label>
           <button class="secondary" id="filter-button">Buscar</button>
         </div>
-        <div id="schedule-list" class="schedule-grid"></div>
+        <div id="schedule-list" class="compact-list"></div>
+        <div id="schedule-pagination" class="pagination hidden"></div>
       </div>
 
       <div id="page-new-schedule" class="page hidden">

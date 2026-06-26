@@ -182,31 +182,67 @@ async function authRoutes(request: Request, env: Env, path: string): Promise<Res
 }
 
 async function listSchedules(env: Env, url: URL): Promise<Response> {
-  const from = url.searchParams.get("from") || new Date().toISOString().slice(0, 10);
-  const to = url.searchParams.get("to") || from;
   const status = url.searchParams.get("status") || "active";
+  const from = clean(url.searchParams.get("from"), 10);
+  const to = clean(url.searchParams.get("to"), 10);
+  const professional = Number(url.searchParams.get("professional")) || 0;
+  const kind = clean(url.searchParams.get("kind"), 20);
+  const period = clean(url.searchParams.get("period"), 20);
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+  const limit = status === "active" ? 500 : 50;
+  const offset = (page - 1) * limit;
   const today = todaySaoPaulo();
-  const activeSql =
-    status === "closed"
-      ? "AND (s.active = 0 OR s.schedule_date < ?)"
-      : status === "all"
-        ? ""
-        : "AND s.active = 1 AND s.schedule_date >= ?";
-  const params = status === "all" ? [from, to] : [from, to, today];
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (status === "closed") {
+    where.push("(s.active = 0 OR s.schedule_date < ?)");
+    params.push(today);
+  } else if (status === "all") {
+    // sem filtro de situação
+  } else {
+    where.push("s.active = 1 AND s.schedule_date >= ?");
+    params.push(today);
+  }
+  if (status !== "active") {
+    if (from) {
+      where.push("s.schedule_date >= ?");
+      params.push(from);
+    }
+    if (to) {
+      where.push("s.schedule_date <= ?");
+      params.push(to);
+    }
+  }
+  if (professional) {
+    where.push("s.professional_id = ?");
+    params.push(professional);
+  }
+  if (kind === "profissional" || kind === "exame") {
+    where.push("s.kind = ?");
+    params.push(kind);
+  }
+  if (["manha", "tarde", "noite"].includes(period)) {
+    where.push("s.period = ?");
+    params.push(period);
+  }
+  const orderDirection = status === "active" ? "ASC" : "DESC";
   const result = await env.DB.prepare(
     `SELECT s.*, p.name professional_name, p.specialty,
             COUNT(a.id) occupied
      FROM schedules s
      LEFT JOIN professionals p ON p.id = s.professional_id
      LEFT JOIN appointments a ON a.schedule_id = s.id
-     WHERE s.schedule_date BETWEEN ? AND ? ${activeSql}
+     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
      GROUP BY s.id
-     ORDER BY s.schedule_date, CASE s.period WHEN 'manha' THEN 1 WHEN 'tarde' THEN 2 WHEN 'noite' THEN 3 ELSE 4 END, s.time_label`,
-  ).bind(...params).all<Record<string, unknown> & { schedule_date: string; active: number }>();
-  return json((result.results ?? []).map((schedule) => ({
+     ORDER BY s.schedule_date ${orderDirection}, CASE s.period WHEN 'manha' THEN 1 WHEN 'tarde' THEN 2 WHEN 'noite' THEN 3 ELSE 4 END, s.time_label
+     LIMIT ? OFFSET ?`,
+  ).bind(...params, limit + 1, offset).all<Record<string, unknown> & { schedule_date: string; active: number }>();
+  const rows = result.results ?? [];
+  const items = rows.slice(0, limit).map((schedule) => ({
     ...schedule,
     active: Number(schedule.active) === 1 && String(schedule.schedule_date) >= today ? 1 : 0,
-  })));
+  }));
+  return json({ items, page, hasMore: rows.length > limit });
 }
 
 async function scheduleDetails(env: Env, id: number): Promise<Response> {

@@ -1,6 +1,6 @@
 (function(){
   "use strict";
-  var state={user:null,needsSetup:false,professionals:[],currentSchedule:null,scheduleDirty:false};
+  var state={user:null,needsSetup:false,professionals:[],currentSchedule:null,scheduleDirty:false,schedulePage:1};
   var $=function(id){return document.getElementById(id)};
   var esc=function(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]})};
   function titleCaseWord(word){
@@ -20,7 +20,7 @@
   var kindLabel=function(kind){return kind==="exame"?'<span class="kind-badge exam">Exame</span>':'<span class="kind-badge consult">Consulta</span>'};
   var periodLabel=function(period,time){return'<span class="period-badge '+esc(period)+'">'+esc(periodName[period]||period)+(time?" • "+esc(time):"")+'</span>'};
   function today(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return d.getFullYear()+"-"+m+"-"+day}
-  function oneMonthAhead(){var d=new Date();d.setMonth(d.getMonth()+1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+  function oneMonthAgo(){var d=new Date();d.setMonth(d.getMonth()-1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
   function nextDate(value){if(!value)return today();var p=value.split("-"),d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));d.setDate(d.getDate()+1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
   async function api(path,options){
     options=options||{};options.headers=Object.assign({"content-type":"application/json"},options.headers||{});
@@ -48,7 +48,7 @@
     if(page==="new-schedule")loadCatalogs();
   }
   async function start(){
-    $("filter-from").value=today();$("filter-to").value=oneMonthAhead();$("schedule-date").value=today();
+    $("filter-from").value=oneMonthAgo();$("filter-to").value=today();$("schedule-date").value=today();
     try{
       var data=await api("/api/status");
       state.user=data.user;state.needsSetup=data.needsSetup;
@@ -89,8 +89,8 @@
     if(menu&&!menu.classList.contains("hidden")&&!e.target.closest("#schedule-actions"))menu.classList.add("hidden");
   });
   document.querySelectorAll(".nav-item").forEach(function(el){el.addEventListener("click",function(){go(el.getAttribute("data-page"))})});
-  $("filter-button").addEventListener("click",loadSchedules);
-  ["filter-professional","filter-kind","filter-period","filter-status","filter-view"].forEach(function(id){$(id).addEventListener("change",loadSchedules)});
+  $("filter-button").addEventListener("click",function(){state.schedulePage=1;loadSchedules()});
+  ["filter-professional","filter-kind","filter-period","filter-status"].forEach(function(id){$(id).addEventListener("change",function(){state.schedulePage=1;loadSchedules()})});
   $("schedule-dialog").addEventListener("close",function(){if(state.scheduleDirty){state.scheduleDirty=false;loadSchedules()}});
   $("schedule-dialog").addEventListener("cancel",function(e){e.preventDefault();requestCloseSchedule()});
   async function loadAgendaFilters(){
@@ -102,13 +102,14 @@
   async function loadSchedules(){
     try{
       await loadAgendaFilters();
-      var rows=await api("/api/schedules?from="+encodeURIComponent($("filter-from").value)+"&to="+encodeURIComponent($("filter-to").value)+"&status="+encodeURIComponent($("filter-status").value));
-      rows=rows.filter(function(s){
-        return (!$("filter-professional").value||String(s.professional_id)===$("filter-professional").value)&&(!$("filter-kind").value||s.kind===$("filter-kind").value)&&(!$("filter-period").value||s.period===$("filter-period").value);
-      });
-      $("schedule-list").classList.toggle("compact-list",$("filter-view").value==="list");
-      $("schedule-list").classList.toggle("schedule-grid",$("filter-view").value!=="list");
-      $("schedule-list").innerHTML=rows.length?($("filter-view").value==="list"?renderScheduleList(rows):renderScheduleCards(rows)):'<div class="empty-state card"><h3>Nenhuma agenda encontrada</h3><p>Ajuste os filtros ou crie uma nova agenda.</p></div>';
+      var status=$("filter-status").value;
+      document.querySelectorAll(".date-filter").forEach(function(el){el.classList.toggle("hidden",status==="active")});
+      var params=new URLSearchParams({status:status,page:String(state.schedulePage),professional:$("filter-professional").value,kind:$("filter-kind").value,period:$("filter-period").value});
+      if(status!=="active"){params.set("from",$("filter-from").value);params.set("to",$("filter-to").value)}
+      var data=await api("/api/schedules?"+params.toString()),rows=data.items||[];
+      $("schedule-list").classList.add("compact-list");$("schedule-list").classList.remove("schedule-grid");
+      $("schedule-list").innerHTML=rows.length?renderScheduleList(rows):'<div class="empty-state card"><h3>Nenhuma agenda encontrada</h3><p>Ajuste os filtros ou crie uma nova agenda.</p></div>';
+      renderPagination(data);
       document.querySelectorAll("[data-schedule]").forEach(function(el){el.addEventListener("click",function(){openSchedule(Number(el.getAttribute("data-schedule")))})});
     }catch(e){toast(e.message,true)}
   }
@@ -117,16 +118,20 @@
     window.clearTimeout(state.scheduleRefreshTimer);
     state.scheduleRefreshTimer=window.setTimeout(function(){if(!$("page-agenda").classList.contains("hidden"))loadSchedules()},250);
   }
-  function renderScheduleCards(rows){
-    return rows.map(function(s){
-        var occupied=Number(s.occupied),cap=Number(s.capacity),pct=Math.min(100,occupied/cap*100),title=s.professional_name||"Profissional não informado";
-        return '<button class="schedule-card '+(s.kind==="exame"?"exam ":"consult ")+(occupied>=cap?"full ":"")+(s.active?"" :"closed")+'" data-schedule="'+s.id+'"><span class="date">'+dateBr(s.schedule_date)+'</span>'+(s.active?"":'<span class="status off">Encerrada</span>')+'<div class="badge-line">'+kindLabel(s.kind)+periodLabel(s.period,s.time_label)+'</div><h3>'+esc(title)+'</h3><div class="capacity"><span style="width:'+pct+'%"></span></div><strong>'+occupied+' de '+cap+' vagas</strong></button>';
-      }).join("");
+  function renderPagination(data){
+    var el=$("schedule-pagination"),status=$("filter-status").value,show=status!=="active"&&(data.hasMore||Number(data.page)>1);
+    el.classList.toggle("hidden",!show);
+    if(!show){el.innerHTML="";return}
+    el.innerHTML='<button class="secondary" id="page-prev" '+(Number(data.page)<=1?"disabled":"")+'>Anterior</button><span>Página '+data.page+'</span><button class="secondary" id="page-next" '+(!data.hasMore?"disabled":"")+'>Próxima</button>';
+    $("page-prev").onclick=function(){if(state.schedulePage>1){state.schedulePage--;loadSchedules()}};
+    $("page-next").onclick=function(){if(data.hasMore){state.schedulePage++;loadSchedules()}};
   }
   function renderScheduleList(rows){
     var groups={};
     rows.forEach(function(s){(groups[s.schedule_date]=groups[s.schedule_date]||[]).push(s)});
-    return Object.keys(groups).sort().map(function(date){
+    var dates=Object.keys(groups).sort();
+    if($("filter-status").value!=="active")dates.reverse();
+    return dates.map(function(date){
       var items=groups[date].map(function(s){
         var occupied=Number(s.occupied),cap=Number(s.capacity),pct=Math.min(100,occupied/cap*100);
         return '<button class="agenda-row '+(s.kind==="exame"?"exam ":"consult ")+(s.active?"":"closed")+'" data-schedule="'+s.id+'"><span class="agenda-row-main"><strong>'+kindLabel(s.kind)+' '+periodLabel(s.period,s.time_label)+' '+esc(s.professional_name||"Profissional não informado")+'</strong></span><span class="agenda-progress"><span><i style="width:'+pct+'%"></i></span><strong>'+occupied+'/'+cap+' vagas</strong></span>'+(s.active?"":'<span class="status off">Encerrada</span>')+'</button>';
