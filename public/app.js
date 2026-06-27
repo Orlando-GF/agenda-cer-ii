@@ -33,7 +33,6 @@
   var periodLabel=function(period,time){return'<span class="period-badge '+esc(period)+'">'+esc(periodName[period]||period)+(time?" • "+esc(time):"")+'</span>'};
   function today(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return d.getFullYear()+"-"+m+"-"+day}
   function oneMonthAgo(){var d=new Date();d.setMonth(d.getMonth()-1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
-  function nextDate(value){if(!value)return today();var p=value.split("-"),d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));d.setDate(d.getDate()+1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
   async function api(path,options){
     options=options||{};options.headers=Object.assign({"content-type":"application/json"},options.headers||{});
     var res=await fetch(path,options),data=await res.json().catch(function(){return{}});
@@ -173,7 +172,6 @@
     try{
       await api("/api/schedules",{method:"POST",body:JSON.stringify({kind:kind,professional_id:$("schedule-professional").value,schedule_date:$("schedule-date").value,period:$("schedule-period").value,time_label:$("schedule-time").value,capacity:$("schedule-capacity").value,notes:$("schedule-notes").value})});
       toast("Agenda criada. Você pode cadastrar a próxima.");
-      $("schedule-date").value=nextDate($("schedule-date").value);
       $("schedule-professional").value="";
       $("schedule-period").value="";
       $("schedule-time").value="";
@@ -330,6 +328,10 @@
     if(first)first.textContent=professionalLabel($("schedule-edit-kind").value);
   }
   $("schedule-edit-kind").addEventListener("change",updateEditScheduleKind);
+  ["schedule-capacity","schedule-edit-capacity"].forEach(function(id){
+    var el=$(id);
+    if(el)el.addEventListener("focus",function(){setTimeout(function(){el.select()},0)});
+  });
   $("schedule-edit-form").addEventListener("submit",async function(e){
     e.preventDefault();
     var id=$("schedule-edit-id").value;
