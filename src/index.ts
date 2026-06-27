@@ -288,7 +288,7 @@ async function scheduleDetails(env: Env, id: number): Promise<Response> {
     active: Number(schedule.active) === 1 && String(schedule.schedule_date) >= todaySaoPaulo() ? 1 : 0,
   };
   const appointments = await env.DB.prepare(
-    `SELECT a.id, a.slot_number, a.observation, a.created_at, p.id patient_id, p.record_number, p.name patient_name,
+    `SELECT a.id, a.slot_number, a.observation, a.family_relation, a.linked_patient_record, a.created_at, p.id patient_id, p.record_number, p.name patient_name,
             u.name created_by_name
      FROM appointments a
      JOIN patients p ON p.id = a.patient_id
@@ -313,17 +313,24 @@ async function printSchedulePage(request: Request, env: Env, id: number): Promis
   if (!detail.ok) return detail;
   const data = await detail.json() as {
     schedule: Record<string, unknown> & { kind: string; professional_name?: string; schedule_date: string; period: string; time_label?: string; occupied: number; capacity: number };
-    appointments: Array<Record<string, unknown> & { slot_number: number; record_number: string; patient_name: string; observation: string }>;
+    appointments: Array<Record<string, unknown> & { slot_number: number; record_number: string; patient_name: string; family_relation?: string; linked_patient_record?: string; observation: string }>;
   };
   const schedule = data.schedule;
+  const isFamilyOrientation = schedule.kind === "orientacao";
   const rowsBySlot = new Map<number, typeof data.appointments[number]>();
   for (const appointment of data.appointments) rowsBySlot.set(Number(appointment.slot_number), appointment);
   const capacity = Number(schedule.capacity);
   const rows = Array.from({ length: capacity }, (_, index) => {
     const slot = index + 1;
     const appointment = rowsBySlot.get(slot);
+    if (isFamilyOrientation) {
+      return `<tr><td class="num">${slot}</td><td>${html(appointment?.record_number)}</td><td>${html(appointment?.patient_name)}</td><td>${html(appointment?.family_relation)}</td><td>${html(appointment?.linked_patient_record)}</td><td>${html(appointment?.observation)}</td></tr>`;
+    }
     return `<tr><td class="num">${slot}</td><td>${html(appointment?.record_number)}</td><td>${html(appointment?.patient_name)}</td><td>${html(appointment?.observation)}</td></tr>`;
   }).join("");
+  const tableHead = isFamilyOrientation
+    ? `<tr><th class="num">#</th><th class="record">Prontuário familiar</th><th>Familiar</th><th>Vínculo</th><th class="record">Prontuário paciente</th><th class="obs">Observação</th></tr>`
+    : `<tr><th class="num">#</th><th class="record">Prontuário</th><th>Paciente</th><th class="obs">Observação</th></tr>`;
   const periodName: Record<string, string> = { manha: "Manhã", tarde: "Tarde", noite: "Noite" };
   const markup = `<!doctype html>
 <html lang="pt-BR">
@@ -348,7 +355,7 @@ async function printSchedulePage(request: Request, env: Env, id: number): Promis
   <h1>${html(schedule.professional_name || "Profissional não informado")}</h1>
   <p>${html(scheduleKindLabel(schedule.kind))} • ${html(schedule.schedule_date.split("-").reverse().join("/"))} • ${html(periodName[schedule.period] || schedule.period)}${schedule.time_label ? ` • ${html(schedule.time_label)}` : ""}</p>
   <div class="summary"><div class="box"><strong>${html(schedule.occupied)}</strong> agendados</div><div class="box"><strong>${html(schedule.capacity)}</strong> vagas</div></div>
-  <table><thead><tr><th class="num">#</th><th class="record">Prontuário</th><th>Paciente</th><th class="obs">Observação</th></tr></thead><tbody>${rows}</tbody></table>
+  <table><thead>${tableHead}</thead><tbody>${rows}</tbody></table>
   <script>
     function closePrintPage(){
       if(window.opener){ window.close(); return; }
@@ -517,7 +524,9 @@ async function api(request: Request, env: Env): Promise<Response> {
     const slotNumber = Number(data.slot_number);
     const record = clean(data.record_number, 50);
     const patientName = titleCaseText(data.patient_name, 150);
-    if (!scheduleId || !slotNumber || !record || !patientName) return error("Informe vaga, prontuário e nome do paciente.");
+    const familyRelation = clean(data.family_relation, 30);
+    const linkedPatientRecord = clean(data.linked_patient_record, 50);
+    if (!scheduleId || !slotNumber || !record || !patientName) return error("Informe vaga, prontuário e nome.");
     const schedule = await env.DB.prepare(
       `SELECT s.kind, s.capacity, COUNT(a.id) occupied FROM schedules s
        LEFT JOIN appointments a ON a.schedule_id = s.id
@@ -525,6 +534,7 @@ async function api(request: Request, env: Env): Promise<Response> {
        GROUP BY s.id`,
     ).bind(scheduleId, todaySaoPaulo()).first<{ kind: string; capacity: number; occupied: number }>();
     if (!schedule) return error("Agenda não encontrada.", 404);
+    if (schedule.kind === "orientacao" && !linkedPatientRecord) return error("Informe o prontuário do paciente vinculado.");
     if (slotNumber < 1 || slotNumber > Number(schedule.capacity)) return error("Número da vaga inválido para esta agenda.");
     if (Number(schedule.occupied) >= Number(schedule.capacity)) return error("Esta agenda já está lotada.", 409);
     let patientId: number;
@@ -543,9 +553,9 @@ async function api(request: Request, env: Env): Promise<Response> {
     }
     try {
       const result = await env.DB.prepare(
-        "INSERT INTO appointments (schedule_id, slot_number, patient_id, observation, created_by) VALUES (?, ?, ?, ?, ?)",
-      ).bind(scheduleId, slotNumber, patientId, clean(data.observation, 500), user.id).run();
-      await audit(env, user, "appointment.create", "appointment", Number(result.meta.last_row_id), { scheduleId, slotNumber, record: isNewPatientRecord(record) ? "Novo" : record, patientName });
+        "INSERT INTO appointments (schedule_id, slot_number, patient_id, observation, family_relation, linked_patient_record, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      ).bind(scheduleId, slotNumber, patientId, clean(data.observation, 500), schedule.kind === "orientacao" ? familyRelation : "", schedule.kind === "orientacao" ? linkedPatientRecord : "", user.id).run();
+      await audit(env, user, "appointment.create", "appointment", Number(result.meta.last_row_id), { scheduleId, slotNumber, record: isNewPatientRecord(record) ? "Novo" : record, patientName, familyRelation, linkedPatientRecord });
       return json({ id: result.meta.last_row_id }, 201);
     } catch {
       return error("Este prontuário já está nessa agenda ou esta vaga já está ocupada.", 409);
@@ -556,6 +566,8 @@ async function api(request: Request, env: Env): Promise<Response> {
     const data = await body(request);
     const record = clean(data.record_number, 50);
     const patientName = titleCaseText(data.patient_name, 150);
+    const familyRelation = clean(data.family_relation, 30);
+    const linkedPatientRecord = clean(data.linked_patient_record, 50);
     if (!record || !patientName) return error("Informe prontuário e nome.");
     const appointment = await env.DB.prepare(
       `SELECT a.patient_id, a.schedule_id, p.record_number, s.kind, s.active, s.schedule_date
@@ -566,21 +578,28 @@ async function api(request: Request, env: Env): Promise<Response> {
     ).bind(Number(appointmentId[1])).first<{ patient_id: number; schedule_id: number; record_number: string; kind: string; active: number; schedule_date: string }>();
     if (!appointment) return error("Agendamento não encontrado.", 404);
     if (Number(appointment.active) !== 1 || appointment.schedule_date < todaySaoPaulo()) return error("Esta agenda está encerrada.");
+    if (appointment.kind === "orientacao" && !linkedPatientRecord) return error("Informe o prontuário do paciente vinculado.");
+    const appointmentFields = [
+      clean(data.observation, 500),
+      appointment.kind === "orientacao" ? familyRelation : "",
+      appointment.kind === "orientacao" ? linkedPatientRecord : "",
+      Number(appointmentId[1]),
+    ] as const;
     try {
       const statements: D1PreparedStatement[] = [];
       if (isNewPatientRecord(record)) {
         if (isInternalNewPatientRecord(appointment.record_number)) {
           statements.push(
             env.DB.prepare("UPDATE patients SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(patientName, appointment.patient_id),
-            env.DB.prepare("UPDATE appointments SET observation = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(clean(data.observation, 500), Number(appointmentId[1])),
+            env.DB.prepare("UPDATE appointments SET observation = ?, family_relation = ?, linked_patient_record = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(...appointmentFields),
           );
         } else {
           const patientResult = await env.DB.prepare(
             "INSERT INTO patients (record_number, name) VALUES (?, ?)",
           ).bind(newPatientRecordToken(), patientName).run();
           statements.push(
-            env.DB.prepare("UPDATE appointments SET patient_id = ?, observation = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-              .bind(Number(patientResult.meta.last_row_id), clean(data.observation, 500), Number(appointmentId[1])),
+            env.DB.prepare("UPDATE appointments SET patient_id = ?, observation = ?, family_relation = ?, linked_patient_record = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+              .bind(Number(patientResult.meta.last_row_id), ...appointmentFields),
           );
         }
       } else {
@@ -588,18 +607,18 @@ async function api(request: Request, env: Env): Promise<Response> {
         if (existingPatient && Number(existingPatient.id) !== Number(appointment.patient_id)) {
           statements.push(
             env.DB.prepare("UPDATE patients SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(patientName, existingPatient.id),
-            env.DB.prepare("UPDATE appointments SET patient_id = ?, observation = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-              .bind(existingPatient.id, clean(data.observation, 500), Number(appointmentId[1])),
+            env.DB.prepare("UPDATE appointments SET patient_id = ?, observation = ?, family_relation = ?, linked_patient_record = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+              .bind(existingPatient.id, ...appointmentFields),
           );
         } else {
           statements.push(
             env.DB.prepare("UPDATE patients SET record_number = ?, name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(record, patientName, appointment.patient_id),
-            env.DB.prepare("UPDATE appointments SET observation = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(clean(data.observation, 500), Number(appointmentId[1])),
+            env.DB.prepare("UPDATE appointments SET observation = ?, family_relation = ?, linked_patient_record = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(...appointmentFields),
           );
         }
       }
       await env.DB.batch(statements);
-      await audit(env, user, "appointment.update", "appointment", Number(appointmentId[1]), { record: isNewPatientRecord(record) ? "Novo" : record, patientName });
+      await audit(env, user, "appointment.update", "appointment", Number(appointmentId[1]), { record: isNewPatientRecord(record) ? "Novo" : record, patientName, familyRelation, linkedPatientRecord });
       return json({ ok: true });
     } catch {
       return error("Já existe outro paciente com esse prontuário nesta agenda.", 409);

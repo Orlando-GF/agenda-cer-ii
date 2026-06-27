@@ -183,16 +183,19 @@
     try{
       var data=await api("/api/schedules/"+id);state.currentSchedule=data;
       var s=data.schedule,title=s.professional_name||"Profissional não informado",available=Number(s.capacity)-Number(s.occupied),closed=!Number(s.active);
-      var tableClass="slots-table consultation-slots";
-      var colgroup='<colgroup><col class="col-num"><col class="col-record"><col class="col-patient"><col class="col-observation"><col class="col-actions"></colgroup>';
+      var isFamily=s.kind==="orientacao";
+      var tableClass="slots-table consultation-slots"+(isFamily?" family-slots":"");
+      var colgroup=isFamily?'<colgroup><col class="col-num"><col class="col-record"><col class="col-patient"><col class="col-relation"><col class="col-linked-record"><col class="col-observation"><col class="col-actions"></colgroup>':'<colgroup><col class="col-num"><col class="col-record"><col class="col-patient"><col class="col-observation"><col class="col-actions"></colgroup>';
+      var tableHead=isFamily?'<tr><th class="col-num">#</th><th class="col-record">Prontuário familiar</th><th class="col-patient">Familiar</th><th class="col-relation">Vínculo</th><th class="col-linked-record">Prontuário paciente</th><th class="col-observation">Observação</th><th class="no-print col-actions"></th></tr>':'<tr><th class="col-num">#</th><th class="col-record">Prontuário</th><th class="col-patient">Paciente</th><th class="col-observation">Observação</th><th class="no-print col-actions"></th></tr>';
       var bySlot={};data.appointments.forEach(function(a){bySlot[Number(a.slot_number)]=a});
       var rows="";
       for(var i=0;i<Number(s.capacity);i++){
         var a=bySlot[i+1]||{};
-        var hasContent=!!(a.id||a.record_number||a.patient_name||a.observation);
-        rows+='<tr data-slot="'+i+'" data-appointment-id="'+(a.id||"")+'"><td class="slot-number col-num">'+(i+1)+'</td><td class="col-record"><input class="slot-record" value="'+esc(a.record_number||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td><td class="col-patient"><input class="slot-name" value="'+esc(a.patient_name||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td><td class="col-observation"><input class="slot-observation" value="'+esc(a.observation||"")+'" '+(closed?"disabled":"")+'></td><td class="no-print slot-actions col-actions">'+(closed?'':'<button class="table-action clear-slot clear-row" title="Limpar vaga" aria-label="Limpar vaga" '+(a.id?'data-id="'+a.id+'"':"")+' '+(hasContent?"":"disabled")+'>🧹</button>')+'</td></tr>';
+        var hasContent=!!(a.id||a.record_number||a.patient_name||a.family_relation||a.linked_patient_record||a.observation);
+        var relation='<select class="slot-relation" '+(closed?"disabled":"")+'><option value="">Selecione...</option><option value="Mãe" '+(a.family_relation==="Mãe"?"selected":"")+'>Mãe</option><option value="Pai" '+(a.family_relation==="Pai"?"selected":"")+'>Pai</option><option value="Responsável" '+(a.family_relation==="Responsável"?"selected":"")+'>Responsável</option><option value="Outro" '+(a.family_relation==="Outro"?"selected":"")+'>Outro</option></select>';
+        rows+='<tr data-slot="'+i+'" data-appointment-id="'+(a.id||"")+'"><td class="slot-number col-num">'+(i+1)+'</td><td class="col-record"><input class="slot-record" value="'+esc(a.record_number||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td><td class="col-patient"><input class="slot-name" value="'+esc(a.patient_name||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td>'+(isFamily?'<td class="col-relation">'+relation+'</td><td class="col-linked-record"><input class="slot-linked-record" value="'+esc(a.linked_patient_record||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td>':'')+'<td class="col-observation"><input class="slot-observation" value="'+esc(a.observation||"")+'" '+(closed?"disabled":"")+'></td><td class="no-print slot-actions col-actions">'+(closed?'':'<button class="table-action clear-slot clear-row" title="Limpar vaga" aria-label="Limpar vaga" '+(a.id?'data-id="'+a.id+'"':"")+' '+(hasContent?"":"disabled")+'>🧹</button>')+'</td></tr>';
       }
-      $("schedule-detail").innerHTML='<div class="dialog-body"><div class="dialog-header"><div><h2>'+esc(title)+' '+(closed?'<span class="status off">Encerrada</span>':'')+'</h2><p><span class="badge-line">'+kindLabel(s.kind)+periodLabel(s.period,s.time_label)+'</span> '+dateBr(s.schedule_date)+'</p></div><div class="dialog-actions no-print" id="schedule-actions"><button class="icon-button" id="schedule-settings" type="button" title="Configurações da agenda" aria-label="Configurações da agenda">⚙️</button><div class="settings-menu hidden" id="schedule-menu"><button type="button" id="edit-schedule">Editar agenda</button><button type="button" class="'+(closed?"":"danger-text")+'" id="toggle-schedule">'+(closed?"Reativar agenda":"Encerrar agenda")+'</button></div><button class="close-button" id="close-schedule" type="button">×</button></div></div><div class="detail-summary"><div class="summary-box"><strong>'+s.occupied+'</strong> agendados</div><div class="summary-box"><strong>'+available+'</strong> vagas disponíveis</div><button class="secondary no-print" id="print-button">Imprimir</button></div><h3>Vagas da agenda</h3><p class="muted no-print">'+(closed?"Esta agenda está encerrada. Reative para editar as vagas.":"Preencha direto na linha da vaga. As alterações são salvas automaticamente.")+'</p><div class="table-wrap slots-wrap"><table class="'+tableClass+'">'+colgroup+'<thead><tr><th class="col-num">#</th><th class="col-record">Prontuário</th><th class="col-patient">Paciente</th><th class="col-observation">Observação</th><th class="no-print col-actions"></th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="print-only">Impresso em '+new Date().toLocaleString("pt-BR")+'</p></div>';
+      $("schedule-detail").innerHTML='<div class="dialog-body"><div class="dialog-header"><div><h2>'+esc(title)+' '+(closed?'<span class="status off">Encerrada</span>':'')+'</h2><p><span class="badge-line">'+kindLabel(s.kind)+periodLabel(s.period,s.time_label)+'</span> '+dateBr(s.schedule_date)+'</p></div><div class="dialog-actions no-print" id="schedule-actions"><button class="icon-button" id="schedule-settings" type="button" title="Configurações da agenda" aria-label="Configurações da agenda">⚙️</button><div class="settings-menu hidden" id="schedule-menu"><button type="button" id="edit-schedule">Editar agenda</button><button type="button" class="'+(closed?"":"danger-text")+'" id="toggle-schedule">'+(closed?"Reativar agenda":"Encerrar agenda")+'</button></div><button class="close-button" id="close-schedule" type="button">×</button></div></div><div class="detail-summary"><div class="summary-box"><strong>'+s.occupied+'</strong> agendados</div><div class="summary-box"><strong>'+available+'</strong> vagas disponíveis</div><button class="secondary no-print" id="print-button">Imprimir</button></div><h3>Vagas da agenda</h3><p class="muted no-print">'+(closed?"Esta agenda está encerrada. Reative para editar as vagas.":(isFamily?"Informe o familiar atendido e o prontuário do paciente vinculado. As alterações são salvas automaticamente.":"Preencha direto na linha da vaga. As alterações são salvas automaticamente."))+'</p><div class="table-wrap slots-wrap"><table class="'+tableClass+'">'+colgroup+'<thead>'+tableHead+'</thead><tbody>'+rows+'</tbody></table></div><p class="print-only">Impresso em '+new Date().toLocaleString("pt-BR")+'</p></div>';
       if(!$("schedule-dialog").open)$("schedule-dialog").showModal();
       $("close-schedule").onclick=requestCloseSchedule;
       $("print-button").onclick=printSchedule;
@@ -203,7 +206,9 @@
       document.querySelectorAll(".slot-record").forEach(function(el){el.addEventListener("blur",async function(e){await fillPatientRow(e);autoSaveSlot(e.target)})});
       document.querySelectorAll(".slot-name").forEach(function(el){el.addEventListener("blur",function(e){normalizeNameInput(e.target);autoSaveSlot(e.target)})});
       document.querySelectorAll(".slot-observation").forEach(function(el){el.addEventListener("blur",function(e){autoSaveSlot(e.target)})});
-      document.querySelectorAll(".slot-record,.slot-name,.slot-observation").forEach(function(el){el.addEventListener("input",function(e){var row=e.target.closest("tr");if(row)updateClearButton(row)})});
+      document.querySelectorAll(".slot-linked-record").forEach(function(el){el.addEventListener("blur",function(e){autoSaveSlot(e.target)})});
+      document.querySelectorAll(".slot-relation").forEach(function(el){el.addEventListener("change",function(e){autoSaveSlot(e.target)})});
+      document.querySelectorAll(".slot-record,.slot-name,.slot-observation,.slot-linked-record,.slot-relation").forEach(function(el){el.addEventListener("input",function(e){var row=e.target.closest("tr");if(row)updateClearButton(row)})});
       document.querySelectorAll(".clear-row").forEach(function(el){el.onclick=function(){clearSlot(el)}}); 
     }catch(e){toast(e.message,true)}
   }
@@ -235,14 +240,19 @@
   }
   function partialRows(){
     return Array.from(document.querySelectorAll("#schedule-dialog tbody tr")).filter(function(row){
-      var record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim();
+      var record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim(),linked=row.querySelector(".slot-linked-record"),relation=row.querySelector(".slot-relation"),observation=row.querySelector(".slot-observation").value.trim();
+      linked=linked?linked.value.trim():"";relation=relation?relation.value.trim():"";
+      var hasAny=!!(record||name||linked||relation||observation);
+      if(!hasAny)return false;
+      if(linked||relation)return !(record&&name&&linked);
       return (record&&!name)||(!record&&name);
     });
   }
   function updateClearButton(row){
     var btn=row.querySelector(".clear-row");if(!btn)return;
-    var id=row.getAttribute("data-appointment-id"),record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim(),observation=row.querySelector(".slot-observation").value.trim();
-    btn.disabled=!(id||record||name||observation);
+    var id=row.getAttribute("data-appointment-id"),record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim(),observation=row.querySelector(".slot-observation").value.trim(),linked=row.querySelector(".slot-linked-record"),relation=row.querySelector(".slot-relation");
+    linked=linked?linked.value.trim():"";relation=relation?relation.value.trim():"";
+    btn.disabled=!(id||record||name||observation||linked||relation);
   }
   async function clearSlot(btn){
     var row=btn.closest("tr");if(!row)return;
@@ -251,16 +261,21 @@
     row.querySelector(".slot-record").value="";
     row.querySelector(".slot-name").value="";
     row.querySelector(".slot-observation").value="";
+    var linked=row.querySelector(".slot-linked-record"),relation=row.querySelector(".slot-relation");
+    if(linked)linked.value="";
+    if(relation)relation.value="";
     updateClearButton(row);
   }
   async function saveSlot(index,options){
     options=options||{};
     var row=document.querySelector('tr[data-slot="'+index+'"]');if(!row)return;
     normalizeNameInput(row.querySelector(".slot-name"));
-    var id=row.getAttribute("data-appointment-id"),record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim(),observation=row.querySelector(".slot-observation").value.trim();
+    var id=row.getAttribute("data-appointment-id"),record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim(),observation=row.querySelector(".slot-observation").value.trim(),linked=row.querySelector(".slot-linked-record"),relation=row.querySelector(".slot-relation");
+    linked=linked?linked.value.trim():"";relation=relation?relation.value.trim():"";
     updateClearButton(row);
     if(!record||!name){if(!options.silent)toast("Informe prontuário e nome do paciente.",true);return}
-    var payload={schedule_id:state.currentSchedule.schedule.id,slot_number:index+1,record_number:record,patient_name:name,observation:observation};
+    if(state.currentSchedule&&state.currentSchedule.schedule.kind==="orientacao"&&!linked){if(!options.silent)toast("Informe o prontuário do paciente vinculado.",true);return}
+    var payload={schedule_id:state.currentSchedule.schedule.id,slot_number:index+1,record_number:record,patient_name:name,observation:observation,family_relation:relation,linked_patient_record:linked};
     try{
       if(id)await api("/api/appointments/"+id,{method:"PATCH",body:JSON.stringify(payload)});
       else{var created=await api("/api/appointments",{method:"POST",body:JSON.stringify(payload)});row.setAttribute("data-appointment-id",created.id);var btn=row.querySelector(".clear-row");if(btn)btn.setAttribute("data-id",created.id)}

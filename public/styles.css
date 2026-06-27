@@ -50,6 +50,11 @@ th,td{padding:9px 8px}
 .slots-table .col-patient{width:44%!important}
 .slots-table .col-observation{width:auto!important}
 .slots-table .col-actions{width:38px!important}
+.family-slots .col-record{width:112px!important}
+.family-slots .col-patient{width:28%!important}
+.family-slots .col-relation{width:135px!important}
+.family-slots .col-linked-record{width:132px!important}
+.family-slots .col-observation{width:auto!important}
 .slots-table th.col-actions,.slots-table td.col-actions{padding-left:2px!important;padding-right:2px!important}
 .slot-actions{display:flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap}
 .table-action{margin-right:0}
