@@ -360,10 +360,10 @@
   });
   document.addEventListener("click",async function(e){
     if(!e.target.classList.contains("edit-catalog"))return;
-    var type=e.target.getAttribute("data-type"),id=e.target.getAttribute("data-id"),x=state.professionals.find(function(r){return String(r.id)===id});
+    var id=e.target.getAttribute("data-id"),x=state.professionals.find(function(r){return String(r.id)===id});
     if(!x)return;
     $("catalog-dialog-title").textContent="Editar profissional";
-    $("catalog-edit-type").value=type;$("catalog-edit-id").value=id;$("catalog-edit-name").value=x.name;
+    $("catalog-edit-id").value=id;$("catalog-edit-name").value=x.name;
     $("catalog-specialty-wrap").classList.remove("hidden");
     $("catalog-edit-specialty").value=x.specialty||"";
     $("catalog-dialog").showModal();

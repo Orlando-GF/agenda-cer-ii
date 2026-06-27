@@ -1,16 +1,17 @@
 # Agenda CER II
 
-Sistema web simples para organização de agendas de profissionais e exames.
+Sistema web simples para organização de agendas de consultas, exames e orientações familiares.
 
 ## Recursos
 
 - Login com perfis de administrador e atendente.
 - Cadastro de profissionais e usuários.
 - Agendas por data e turno, com horário em lista pronta e limite de vagas.
-- Agenda de consulta ou exame sempre vinculada a um profissional responsável.
+- Agenda de consulta, exame ou orientação familiar sempre vinculada a um profissional responsável.
 - Agenda de exame sem exigir a seleção do exame específico do paciente.
+- Orientação familiar com prontuário do familiar vinculado ao prontuário do paciente.
 - Tela principal com lista compacta agrupada por data, filtros de profissional, tipo, turno e situação.
-- Cadastro de paciente por prontuário, nome e observação.
+- Cadastro de vagas por prontuário, nome e observação, com suporte a paciente novo usando `novo`.
 - Bloqueio de paciente repetido e de agenda lotada.
 - Impressão da lista de pacientes.
 - Desativação de cadastros sem perder o histórico.
