@@ -39,6 +39,10 @@ function titleCaseText(value: unknown, max = 200): string {
     .join(" ");
 }
 
+function upperCaseText(value: unknown, max = 200): string {
+  return clean(value, max).replace(/\s+/g, " ").toLocaleUpperCase("pt-BR");
+}
+
 function isNewPatientRecord(record: string): boolean {
   return record.trim().toLowerCase() === "novo";
 }
@@ -297,7 +301,13 @@ async function scheduleDetails(env: Env, id: number): Promise<Response> {
      ORDER BY a.slot_number`,
   ).bind(id).all<Record<string, unknown> & { id: number }>();
   const rows = appointments.results ?? [];
-  for (const row of rows) row.record_number = publicPatientRecord(row.record_number);
+  for (const row of rows) {
+    row.record_number = publicPatientRecord(row.record_number);
+    row.patient_name = upperCaseText(row.patient_name, 150);
+    row.family_relation = upperCaseText(row.family_relation, 30);
+    row.linked_patient_record = upperCaseText(row.linked_patient_record, 50);
+    row.observation = upperCaseText(row.observation, 500);
+  }
   return json({ schedule: normalizedSchedule, appointments: rows });
 }
 
@@ -523,9 +533,10 @@ async function api(request: Request, env: Env): Promise<Response> {
     const scheduleId = Number(data.schedule_id);
     const slotNumber = Number(data.slot_number);
     const record = clean(data.record_number, 50);
-    const patientName = titleCaseText(data.patient_name, 150);
-    const familyRelation = clean(data.family_relation, 30);
-    const linkedPatientRecord = clean(data.linked_patient_record, 50);
+    const patientName = upperCaseText(data.patient_name, 150);
+    const familyRelation = upperCaseText(data.family_relation, 30);
+    const linkedPatientRecord = upperCaseText(data.linked_patient_record, 50);
+    const observation = upperCaseText(data.observation, 500);
     if (!scheduleId || !slotNumber || !record || !patientName) return error("Informe vaga, prontuário e nome.");
     const schedule = await env.DB.prepare(
       `SELECT s.kind, s.capacity, COUNT(a.id) occupied FROM schedules s
@@ -554,7 +565,7 @@ async function api(request: Request, env: Env): Promise<Response> {
     try {
       const result = await env.DB.prepare(
         "INSERT INTO appointments (schedule_id, slot_number, patient_id, observation, family_relation, linked_patient_record, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      ).bind(scheduleId, slotNumber, patientId, clean(data.observation, 500), schedule.kind === "orientacao" ? familyRelation : "", schedule.kind === "orientacao" ? linkedPatientRecord : "", user.id).run();
+      ).bind(scheduleId, slotNumber, patientId, observation, schedule.kind === "orientacao" ? familyRelation : "", schedule.kind === "orientacao" ? linkedPatientRecord : "", user.id).run();
       await audit(env, user, "appointment.create", "appointment", Number(result.meta.last_row_id), { scheduleId, slotNumber, record: isNewPatientRecord(record) ? "Novo" : record, patientName, familyRelation, linkedPatientRecord });
       return json({ id: result.meta.last_row_id }, 201);
     } catch {
@@ -565,9 +576,9 @@ async function api(request: Request, env: Env): Promise<Response> {
   if (appointmentId && request.method === "PATCH") {
     const data = await body(request);
     const record = clean(data.record_number, 50);
-    const patientName = titleCaseText(data.patient_name, 150);
-    const familyRelation = clean(data.family_relation, 30);
-    const linkedPatientRecord = clean(data.linked_patient_record, 50);
+    const patientName = upperCaseText(data.patient_name, 150);
+    const familyRelation = upperCaseText(data.family_relation, 30);
+    const linkedPatientRecord = upperCaseText(data.linked_patient_record, 50);
     if (!record || !patientName) return error("Informe prontuário e nome.");
     const appointment = await env.DB.prepare(
       `SELECT a.patient_id, a.schedule_id, p.record_number, s.kind, s.active, s.schedule_date
@@ -580,7 +591,7 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (Number(appointment.active) !== 1 || appointment.schedule_date < todaySaoPaulo()) return error("Esta agenda está encerrada.");
     if (appointment.kind === "orientacao" && !linkedPatientRecord) return error("Informe o prontuário do paciente vinculado.");
     const appointmentFields = [
-      clean(data.observation, 500),
+      upperCaseText(data.observation, 500),
       appointment.kind === "orientacao" ? familyRelation : "",
       appointment.kind === "orientacao" ? linkedPatientRecord : "",
       Number(appointmentId[1]),

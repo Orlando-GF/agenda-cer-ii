@@ -14,6 +14,8 @@
     }).join(" ");
   }
   function normalizeNameInput(el){if(el)el.value=titleCaseText(el.value)}
+  function upperCaseText(value){return String(value||"").trim().replace(/\s+/g," ").toLocaleUpperCase("pt-BR")}
+  function normalizeSlotInput(el){if(el)el.value=upperCaseText(el.value)}
   var periodName={manha:"Manhã",tarde:"Tarde",noite:"Noite"};
   var dateBr=function(v){if(!v)return"";var p=v.split("-");return p[2]+"/"+p[1]+"/"+p[0]};
   var weekdayBr=function(v){var p=v.split("-"),d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));return ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"][d.getDay()]};
@@ -192,7 +194,8 @@
       for(var i=0;i<Number(s.capacity);i++){
         var a=bySlot[i+1]||{};
         var hasContent=!!(a.id||a.record_number||a.patient_name||a.family_relation||a.linked_patient_record||a.observation);
-        var relation='<select class="slot-relation" '+(closed?"disabled":"")+'><option value="">Selecione...</option><option value="Mãe" '+(a.family_relation==="Mãe"?"selected":"")+'>Mãe</option><option value="Pai" '+(a.family_relation==="Pai"?"selected":"")+'>Pai</option><option value="Responsável" '+(a.family_relation==="Responsável"?"selected":"")+'>Responsável</option><option value="Outro" '+(a.family_relation==="Outro"?"selected":"")+'>Outro</option></select>';
+        var currentRelation=upperCaseText(a.family_relation||"");
+        var relation='<select class="slot-relation" '+(closed?"disabled":"")+'><option value="">SELECIONE...</option><option value="MÃE" '+(currentRelation==="MÃE"?"selected":"")+'>MÃE</option><option value="PAI" '+(currentRelation==="PAI"?"selected":"")+'>PAI</option><option value="RESPONSÁVEL" '+(currentRelation==="RESPONSÁVEL"?"selected":"")+'>RESPONSÁVEL</option><option value="OUTRO" '+(currentRelation==="OUTRO"?"selected":"")+'>OUTRO</option></select>';
         rows+='<tr data-slot="'+i+'" data-appointment-id="'+(a.id||"")+'"><td class="slot-number col-num">'+(i+1)+'</td><td class="col-record"><input class="slot-record" value="'+esc(a.record_number||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td><td class="col-patient"><input class="slot-name" value="'+esc(a.patient_name||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td>'+(isFamily?'<td class="col-relation">'+relation+'</td><td class="col-linked-record"><input class="slot-linked-record" value="'+esc(a.linked_patient_record||"")+'" autocomplete="off" '+(closed?"disabled":"")+'></td>':'')+'<td class="col-observation"><input class="slot-observation" value="'+esc(a.observation||"")+'" '+(closed?"disabled":"")+'></td><td class="no-print slot-actions col-actions">'+(closed?'':'<button class="table-action clear-slot clear-row" title="Limpar vaga" aria-label="Limpar vaga" '+(a.id?'data-id="'+a.id+'"':"")+' '+(hasContent?"":"disabled")+'>🧹</button>')+'</td></tr>';
       }
       $("schedule-detail").innerHTML='<div class="dialog-body"><div class="dialog-header"><div><h2>'+esc(title)+' '+(closed?'<span class="status off">Encerrada</span>':'')+'</h2><p><span class="badge-line">'+kindLabel(s.kind)+periodLabel(s.period,s.time_label)+'</span> '+dateBr(s.schedule_date)+'</p></div><div class="dialog-actions no-print" id="schedule-actions"><button class="icon-button" id="schedule-settings" type="button" title="Configurações da agenda" aria-label="Configurações da agenda">⚙️</button><div class="settings-menu hidden" id="schedule-menu"><button type="button" id="edit-schedule">Editar agenda</button><button type="button" class="'+(closed?"":"danger-text")+'" id="toggle-schedule">'+(closed?"Reativar agenda":"Encerrar agenda")+'</button></div><button class="close-button" id="close-schedule" type="button">×</button></div></div><div class="detail-summary"><div class="summary-box"><strong>'+s.occupied+'</strong> agendados</div><div class="summary-box"><strong>'+available+'</strong> vagas disponíveis</div><button class="secondary no-print" id="print-button">Imprimir</button></div><h3>Vagas da agenda</h3><p class="muted no-print">'+(closed?"Esta agenda está encerrada. Reative para editar as vagas.":(isFamily?"Informe o familiar atendido e o prontuário do paciente vinculado. As alterações são salvas automaticamente.":"Preencha direto na linha da vaga. As alterações são salvas automaticamente."))+'</p><div class="table-wrap slots-wrap"><table class="'+tableClass+'">'+colgroup+'<thead>'+tableHead+'</thead><tbody>'+rows+'</tbody></table></div><p class="print-only">Impresso em '+new Date().toLocaleString("pt-BR")+'</p></div>';
@@ -203,12 +206,13 @@
       $("schedule-menu").onclick=function(e){e.stopPropagation()};
       $("edit-schedule").onclick=function(){$("schedule-menu").classList.add("hidden");openEditSchedule()};
       $("toggle-schedule").onclick=async function(){$("schedule-menu").classList.add("hidden");await toggleSchedule(s.id,closed)};
-      document.querySelectorAll(".slot-record").forEach(function(el){el.addEventListener("blur",async function(e){await fillPatientRow(e);autoSaveSlot(e.target)})});
-      document.querySelectorAll(".slot-name").forEach(function(el){el.addEventListener("blur",function(e){normalizeNameInput(e.target);autoSaveSlot(e.target)})});
-      document.querySelectorAll(".slot-observation").forEach(function(el){el.addEventListener("blur",function(e){autoSaveSlot(e.target)})});
-      document.querySelectorAll(".slot-linked-record").forEach(function(el){el.addEventListener("blur",function(e){autoSaveSlot(e.target)})});
+      document.querySelectorAll(".slot-record").forEach(function(el){el.addEventListener("blur",async function(e){normalizeSlotInput(e.target);await fillPatientRow(e);autoSaveSlot(e.target)})});
+      document.querySelectorAll(".slot-name").forEach(function(el){el.addEventListener("blur",function(e){normalizeSlotInput(e.target);autoSaveSlot(e.target)})});
+      document.querySelectorAll(".slot-observation").forEach(function(el){el.addEventListener("blur",function(e){normalizeSlotInput(e.target);autoSaveSlot(e.target)})});
+      document.querySelectorAll(".slot-linked-record").forEach(function(el){el.addEventListener("blur",function(e){normalizeSlotInput(e.target);autoSaveSlot(e.target)})});
       document.querySelectorAll(".slot-relation").forEach(function(el){el.addEventListener("change",function(e){autoSaveSlot(e.target)})});
       document.querySelectorAll(".slot-record,.slot-name,.slot-observation,.slot-linked-record,.slot-relation").forEach(function(el){el.addEventListener("input",function(e){var row=e.target.closest("tr");if(row)updateClearButton(row)})});
+      document.querySelectorAll(".slot-record,.slot-name,.slot-observation,.slot-linked-record,.slot-relation").forEach(function(el){el.addEventListener("keydown",handleSlotEnterAsTab)});
       document.querySelectorAll(".clear-row").forEach(function(el){el.onclick=function(){clearSlot(el)}}); 
     }catch(e){toast(e.message,true)}
   }
@@ -229,7 +233,14 @@
   async function fillPatientRow(e){
     var row=e.target.closest("tr"),q=e.target.value.trim();if(!row||!q)return;
     if(q.toLowerCase()==="novo")return;
-    try{var list=await api("/api/patients/search?q="+encodeURIComponent(q));var exact=list.find(function(x){return x.record_number.toLowerCase()===q.toLowerCase()});if(exact)row.querySelector(".slot-name").value=exact.name}catch(err){}
+    try{var list=await api("/api/patients/search?q="+encodeURIComponent(q));var exact=list.find(function(x){return x.record_number.toLowerCase()===q.toLowerCase()});if(exact)row.querySelector(".slot-name").value=upperCaseText(exact.name)}catch(err){}
+  }
+  function handleSlotEnterAsTab(e){
+    if(e.key!=="Enter")return;
+    e.preventDefault();
+    var fields=Array.from(document.querySelectorAll("#schedule-dialog .slot-record,#schedule-dialog .slot-name,#schedule-dialog .slot-relation,#schedule-dialog .slot-linked-record,#schedule-dialog .slot-observation")).filter(function(el){return !el.disabled&&el.offsetParent!==null});
+    var index=fields.indexOf(e.target),next=fields[index+(e.shiftKey?-1:1)];
+    if(next)next.focus();
   }
   function autoSaveSlot(el){
     var row=el.closest("tr");if(!row)return;
@@ -269,7 +280,10 @@
   async function saveSlot(index,options){
     options=options||{};
     var row=document.querySelector('tr[data-slot="'+index+'"]');if(!row)return;
-    normalizeNameInput(row.querySelector(".slot-name"));
+    normalizeSlotInput(row.querySelector(".slot-record"));
+    normalizeSlotInput(row.querySelector(".slot-name"));
+    normalizeSlotInput(row.querySelector(".slot-linked-record"));
+    normalizeSlotInput(row.querySelector(".slot-observation"));
     var id=row.getAttribute("data-appointment-id"),record=row.querySelector(".slot-record").value.trim(),name=row.querySelector(".slot-name").value.trim(),observation=row.querySelector(".slot-observation").value.trim(),linked=row.querySelector(".slot-linked-record"),relation=row.querySelector(".slot-relation");
     linked=linked?linked.value.trim():"";relation=relation?relation.value.trim():"";
     updateClearButton(row);

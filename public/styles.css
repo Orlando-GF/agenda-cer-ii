@@ -38,6 +38,7 @@ th,td{padding:9px 8px}
 .summary-box{border-radius:5px;padding:10px 13px}
 .slots-table td{height:46px;padding:5px 7px}
 .slots-table input{height:34px;padding:7px 8px;border-radius:5px}
+.slots-table input{text-transform:uppercase}
 .kind-badge,.status{border-radius:5px}
 .icon-button{border-radius:5px}
 .toast{border-radius:5px}
