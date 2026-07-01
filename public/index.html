@@ -42,12 +42,17 @@
 
     <aside id="sidebar" class="sidebar">
       <nav>
-        <button data-page="agenda" class="nav-item active"><span class="nav-icon">📅</span><span>Agenda</span></button>
-        <button data-page="new-schedule" class="nav-item"><span class="nav-icon">＋</span><span>Nova agenda</span></button>
-        <button data-page="waitlist" class="nav-item"><span class="nav-icon">📋</span><span>Fila de espera</span></button>
-        <button data-page="queue-catalogs" class="nav-item"><span class="nav-icon">🗂️</span><span>Cadastros da fila</span></button>
-        <button data-page="professionals" class="nav-item"><span class="nav-icon">🩺</span><span>Profissionais</span></button>
-        <button data-page="users" class="nav-item admin-only"><span class="nav-icon">👤</span><span>Usuários</span></button>
+        <div class="nav-section">Agendas</div>
+        <button data-page="agenda" class="nav-item nav-subitem active"><span class="nav-icon">📅</span><span>Agenda</span></button>
+        <button data-page="new-schedule" class="nav-item nav-subitem"><span class="nav-icon">＋</span><span>Nova agenda</span></button>
+        <button data-page="professionals" class="nav-item nav-subitem"><span class="nav-icon">🩺</span><span>Profissionais</span></button>
+
+        <div class="nav-section">Fila de espera</div>
+        <button data-page="waitlist" class="nav-item nav-subitem"><span class="nav-icon">📋</span><span>Solicitações</span></button>
+        <button data-page="queue-catalogs" class="nav-item nav-subitem"><span class="nav-icon">🗂️</span><span>Cadastros da fila</span></button>
+
+        <div class="nav-section admin-only">Sistema</div>
+        <button data-page="users" class="nav-item nav-subitem admin-only"><span class="nav-icon">👤</span><span>Usuários</span></button>
       </nav>
     </aside>
 
