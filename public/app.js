@@ -1,6 +1,6 @@
 (function(){
   "use strict";
-  var state={user:null,needsSetup:false,professionals:[],currentSchedule:null,scheduleDirty:false,schedulePage:1};
+  var state={user:null,needsSetup:false,professionals:[],queueSpecialties:[],queueProfessionals:[],currentSchedule:null,scheduleDirty:false,schedulePage:1,queuePage:1};
   var $=function(id){return document.getElementById(id)};
   var esc=function(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]})};
   function titleCaseWord(word){
@@ -31,6 +31,8 @@
     return"Profissional da consulta";
   };
   var periodLabel=function(period,time){return'<span class="period-badge '+esc(period)+'">'+esc(periodName[period]||period)+(time?" • "+esc(time):"")+'</span>'};
+  var queueStatusNames={aguardando:"Aguardando",chamado:"Chamado",atendido:"Atendido",nao_compareceu:"Não compareceu",desistiu:"Desistiu",cancelado:"Cancelado"};
+  var queueOpenStatuses={aguardando:true,chamado:true};
   function today(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return d.getFullYear()+"-"+m+"-"+day}
   function oneMonthAgo(){var d=new Date();d.setMonth(d.getMonth()-1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
   async function api(path,options){
@@ -55,6 +57,8 @@
     $("sidebar").classList.remove("open");
     if(page==="agenda")loadSchedules();
     if(page==="professionals")loadProfessionals(true);
+    if(page==="waitlist")loadWaitlistPage();
+    if(page==="queue-catalogs")loadQueueCatalogPage();
     if(page==="users"){clearUserForm();loadUsers()}
     if(page==="new-schedule")loadCatalogs();
   }
@@ -102,6 +106,8 @@
   document.querySelectorAll(".nav-item").forEach(function(el){el.addEventListener("click",function(){go(el.getAttribute("data-page"))})});
   $("filter-button").addEventListener("click",function(){state.schedulePage=1;loadSchedules()});
   ["filter-professional","filter-kind","filter-period","filter-status"].forEach(function(id){$(id).addEventListener("change",function(){state.schedulePage=1;loadSchedules()})});
+  ["queue-filter-specialty","queue-filter-status"].forEach(function(id){$(id).addEventListener("change",function(){state.queuePage=1;loadQueueRequests()})});
+  $("queue-filter-button").addEventListener("click",function(){state.queuePage=1;loadQueueRequests()});
   $("schedule-dialog").addEventListener("close",function(){if(state.scheduleDirty){state.scheduleDirty=false;loadSchedules()}});
   $("schedule-dialog").addEventListener("cancel",function(e){e.preventDefault();requestCloseSchedule()});
   async function loadAgendaFilters(){
@@ -379,6 +385,127 @@
     payload.specialty=$("catalog-edit-specialty").value.trim();
     try{await api("/api/professionals/"+id,{method:"PATCH",body:JSON.stringify(payload)});$("catalog-dialog").close();toast("Cadastro atualizado.");loadProfessionals(true)}catch(err){toast(err.message,true)}
   });
+
+  async function loadQueueCatalogs(){
+    state.queueSpecialties=await api("/api/queue/specialties");
+    state.queueProfessionals=await api("/api/queue/professionals");
+  }
+  function activeQueueSpecialtyOptions(selected){
+    return '<option value="">Selecione...</option>'+state.queueSpecialties.filter(function(x){return x.active||String(x.id)===String(selected||"")}).map(function(x){return'<option value="'+x.id+'" '+(String(x.id)===String(selected||"")?"selected":"")+'>'+esc(x.name)+'</option>'}).join("");
+  }
+  function activeQueueProfessionalOptions(selected,specialtyId){
+    return '<option value="">Selecione...</option>'+state.queueProfessionals.filter(function(x){return (x.active||String(x.id)===String(selected||""))&&(!specialtyId||String(x.specialty_id)===String(specialtyId))}).map(function(x){return'<option value="'+x.id+'" '+(String(x.id)===String(selected||"")?"selected":"")+'>'+esc(x.name)+' — '+esc(x.specialty_name)+'</option>'}).join("");
+  }
+  async function loadWaitlistPage(){
+    try{
+      await loadQueueCatalogs();
+      if(!$("queue-medical-date").value)$("queue-medical-date").value=today();
+      $("queue-specialty").innerHTML=activeQueueSpecialtyOptions();
+      $("queue-filter-specialty").innerHTML='<option value="">Todas</option>'+state.queueSpecialties.map(function(x){return'<option value="'+x.id+'">'+esc(x.name)+(x.active?"":" — inativa")+'</option>'}).join("");
+      updateQueueRequesterOptions();
+      loadQueueRequests();
+    }catch(e){toast(e.message,true)}
+  }
+  function updateQueueRequesterOptions(){
+    $("queue-requester").innerHTML=activeQueueProfessionalOptions("",$("queue-specialty").value);
+  }
+  $("queue-specialty").addEventListener("change",updateQueueRequesterOptions);
+  $("queue-request-form").addEventListener("submit",async function(e){
+    e.preventDefault();
+    var payload={
+      record_number:upperCaseText($("queue-record").value),
+      patient_name:upperCaseText($("queue-patient").value),
+      phone:$("queue-phone").value.trim(),
+      specialty_id:$("queue-specialty").value,
+      requester_id:$("queue-requester").value,
+      requested_procedure:upperCaseText($("queue-procedure").value),
+      medical_request_date:$("queue-medical-date").value,
+      observation:upperCaseText($("queue-observation").value)
+    };
+    try{
+      var result=await api("/api/queue/requests",{method:"POST",body:JSON.stringify(payload)});
+      $("queue-request-form").reset();
+      $("queue-medical-date").value=today();
+      toast(result.warning||"Solicitação adicionada à fila.",!!result.warning);
+      loadQueueRequests();
+    }catch(err){toast(err.message,true)}
+  });
+  ["queue-record","queue-patient","queue-procedure","queue-observation"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeSlotInput(el)})});
+  async function loadQueueRequests(){
+    try{
+      var params=new URLSearchParams({page:String(state.queuePage),specialty:$("queue-filter-specialty").value,status:$("queue-filter-status").value,q:$("queue-search").value.trim()});
+      var data=await api("/api/queue/requests?"+params.toString()),rows=data.items||[];
+      $("queue-list").innerHTML=rows.length?renderQueueTable(rows):'<p>Nenhuma solicitação encontrada.</p>';
+      renderQueuePagination(data);
+    }catch(e){toast(e.message,true)}
+  }
+  function renderQueueTable(rows){
+    var lastSpecialty="";
+    return '<table class="queue-table"><thead><tr><th>Solicitação</th><th>Paciente</th><th>Telefone</th><th>Profissional</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){
+      var open=!!queueOpenStatuses[x.status],called=x.called_at?'<br><small>Chamado: '+dateTimeBr(x.called_at)+'</small>':"";
+      var group=lastSpecialty!==x.specialty_name?'<tr class="queue-group"><td colspan="6">'+esc(x.specialty_name)+'</td></tr>':"";
+      lastSpecialty=x.specialty_name;
+      return group+'<tr><td>'+dateBr(x.medical_request_date)+'<br><small>'+esc(x.requested_procedure)+'</small></td><td><strong>'+esc(x.record_number)+'</strong><br>'+esc(x.patient_name)+'</td><td>'+esc(x.phone||"")+'</td><td>'+esc(x.requester_name)+'</td><td><span class="queue-status '+esc(x.status)+'">'+esc(queueStatusNames[x.status]||x.status)+'</span>'+called+'</td><td class="queue-actions">'+(x.status==="aguardando"?'<button class="table-action queue-call" data-id="'+x.id+'">Chamar</button>':"")+(open?'<select class="queue-status-change" data-id="'+x.id+'"><option value="">Alterar...</option><option value="atendido">Atendido</option><option value="nao_compareceu">Não compareceu</option><option value="desistiu">Desistiu</option><option value="cancelado">Cancelado</option></select>':"")+'<button class="table-action queue-history" data-id="'+x.id+'">Histórico</button></td></tr>';
+    }).join("")+'</tbody></table>';
+  }
+  function dateTimeBr(value){
+    if(!value)return"";
+    var d=new Date(String(value).replace(" ","T")+"Z");
+    return isNaN(d.getTime())?String(value):d.toLocaleString("pt-BR");
+  }
+  function renderQueuePagination(data){
+    var el=$("queue-pagination"),show=data.hasMore||Number(data.page)>1;
+    el.classList.toggle("hidden",!show);
+    if(!show){el.innerHTML="";return}
+    el.innerHTML='<button class="secondary" id="queue-prev" '+(Number(data.page)<=1?"disabled":"")+'>Anterior</button><span>Página '+data.page+'</span><button class="secondary" id="queue-next" '+(!data.hasMore?"disabled":"")+'>Próxima</button>';
+    $("queue-prev").onclick=function(){if(state.queuePage>1){state.queuePage--;loadQueueRequests()}};
+    $("queue-next").onclick=function(){if(data.hasMore){state.queuePage++;loadQueueRequests()}};
+  }
+  document.addEventListener("click",async function(e){
+    if(e.target.classList.contains("queue-call")){
+      if(!await askConfirm("Chamar paciente","Marcar esta solicitação como chamada agora?","Chamar"))return;
+      try{await api("/api/queue/requests/"+e.target.getAttribute("data-id"),{method:"PATCH",body:JSON.stringify({status:"chamado"})});toast("Solicitação chamada.");loadQueueRequests()}catch(err){toast(err.message,true)}
+    }
+    if(e.target.classList.contains("queue-history")){
+      try{
+        var rows=await api("/api/queue/requests/"+e.target.getAttribute("data-id")+"/movements");
+        $("queue-history-list").innerHTML=rows.length?'<table><thead><tr><th>Data</th><th>Ação</th><th>Status</th><th>Usuário</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+dateTimeBr(x.created_at)+'</td><td>'+esc(x.action)+'</td><td>'+esc((queueStatusNames[x.from_status]||x.from_status||"")+(x.to_status?" → "+(queueStatusNames[x.to_status]||x.to_status):""))+'</td><td>'+esc(x.user_name||"")+'</td></tr>'}).join("")+'</tbody></table>':'<p>Nenhuma movimentação.</p>';
+        $("queue-history-dialog").showModal();
+      }catch(err){toast(err.message,true)}
+    }
+  });
+  document.addEventListener("change",async function(e){
+    if(!e.target.classList.contains("queue-status-change")||!e.target.value)return;
+    try{await api("/api/queue/requests/"+e.target.getAttribute("data-id"),{method:"PATCH",body:JSON.stringify({status:e.target.value})});toast("Status atualizado.");loadQueueRequests()}catch(err){toast(err.message,true)}
+  });
+
+  async function loadQueueCatalogPage(){
+    try{
+      await loadQueueCatalogs();
+      $("queue-professional-specialty").innerHTML=activeQueueSpecialtyOptions();
+      $("queue-specialty-list").innerHTML=renderQueueSpecialties();
+      $("queue-professional-list").innerHTML=renderQueueProfessionals();
+    }catch(e){toast(e.message,true)}
+  }
+  function renderQueueSpecialties(){
+    if(!state.queueSpecialties.length)return"<p>Nenhuma especialidade cadastrada.</p>";
+    return '<table><thead><tr><th>Especialidade</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+state.queueSpecialties.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action toggle-queue-specialty" data-id="'+x.id+'" data-name="'+esc(x.name)+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
+  }
+  function renderQueueProfessionals(){
+    if(!state.queueProfessionals.length)return"<p>Nenhum profissional cadastrado.</p>";
+    return '<table><thead><tr><th>Nome</th><th>Especialidade</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+state.queueProfessionals.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.specialty_name)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action toggle-queue-professional" data-id="'+x.id+'" data-name="'+esc(x.name)+'" data-specialty="'+x.specialty_id+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
+  }
+  $("queue-specialty-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("queue-specialty-name"));try{await api("/api/queue/specialties",{method:"POST",body:JSON.stringify({name:$("queue-specialty-name").value})});this.reset();toast("Especialidade cadastrada.");loadQueueCatalogPage()}catch(err){toast(err.message,true)}});
+  $("queue-professional-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("queue-professional-name"));try{await api("/api/queue/professionals",{method:"POST",body:JSON.stringify({name:$("queue-professional-name").value,specialty_id:$("queue-professional-specialty").value})});this.reset();toast("Profissional cadastrado.");loadQueueCatalogPage()}catch(err){toast(err.message,true)}});
+  document.addEventListener("click",async function(e){
+    if(e.target.classList.contains("toggle-queue-specialty")){
+      try{await api("/api/queue/specialties/"+e.target.getAttribute("data-id"),{method:"PATCH",body:JSON.stringify({name:e.target.getAttribute("data-name"),active:e.target.getAttribute("data-active")!=="1"})});toast("Especialidade atualizada.");loadQueueCatalogPage()}catch(err){toast(err.message,true)}
+    }
+    if(e.target.classList.contains("toggle-queue-professional")){
+      try{await api("/api/queue/professionals/"+e.target.getAttribute("data-id"),{method:"PATCH",body:JSON.stringify({name:e.target.getAttribute("data-name"),specialty_id:e.target.getAttribute("data-specialty"),active:e.target.getAttribute("data-active")!=="1"})});toast("Profissional atualizado.");loadQueueCatalogPage()}catch(err){toast(err.message,true)}
+    }
+  });
+
   async function loadUsers(){
     if(state.user.role!=="admin")return;
     try{var rows=await api("/api/users");$("user-list").innerHTML=rows.length?'<table><thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.username)+'</td><td>'+esc(x.role==="admin"?"Administrador":"Atendente")+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action toggle-user" data-id="'+x.id+'" data-name="'+esc(x.name)+'" data-role="'+x.role+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>':"<p>Nenhum usuário.</p>"}catch(e){toast(e.message,true)}

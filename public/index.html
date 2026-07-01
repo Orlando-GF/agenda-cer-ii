@@ -44,6 +44,8 @@
       <nav>
         <button data-page="agenda" class="nav-item active"><span class="nav-icon">📅</span><span>Agenda</span></button>
         <button data-page="new-schedule" class="nav-item"><span class="nav-icon">＋</span><span>Nova agenda</span></button>
+        <button data-page="waitlist" class="nav-item"><span class="nav-icon">📋</span><span>Fila de espera</span></button>
+        <button data-page="queue-catalogs" class="nav-item"><span class="nav-icon">🗂️</span><span>Cadastros da fila</span></button>
         <button data-page="professionals" class="nav-item"><span class="nav-icon">🩺</span><span>Profissionais</span></button>
         <button data-page="users" class="nav-item admin-only"><span class="nav-icon">👤</span><span>Usuários</span></button>
       </nav>
@@ -142,6 +144,55 @@
         <div id="professional-list" class="card table-wrap"></div>
       </div>
 
+      <div id="page-waitlist" class="page hidden">
+        <div class="page-heading"><div><h2>Fila de espera</h2><p>Solicitações separadas por especialidade, ordenadas pela data da solicitação médica.</p></div></div>
+        <form id="queue-request-form" class="card form-grid">
+          <label>Número do prontuário <input id="queue-record" required></label>
+          <label>Nome do paciente <input id="queue-patient" required></label>
+          <label>Telefone/WhatsApp <input id="queue-phone"></label>
+          <label>Especialidade solicitada <select id="queue-specialty" required></select></label>
+          <label>Profissional solicitante <select id="queue-requester" required></select></label>
+          <label>Data da solicitação médica <input id="queue-medical-date" type="date" required></label>
+          <label class="full">Motivo/procedimento solicitado <input id="queue-procedure" required></label>
+          <label class="full">Observação <textarea id="queue-observation" rows="2"></textarea></label>
+          <div class="form-actions full"><button class="primary">Adicionar à fila</button></div>
+        </form>
+        <div class="filters card">
+          <label>Especialidade <select id="queue-filter-specialty"><option value="">Todas</option></select></label>
+          <label>Status
+            <select id="queue-filter-status">
+              <option value="open">Em aberto</option>
+              <option value="aguardando">Aguardando</option>
+              <option value="chamado">Chamado</option>
+              <option value="atendido">Atendido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="desistiu">Desistiu</option>
+              <option value="cancelado">Cancelado</option>
+              <option value="all">Todos</option>
+            </select>
+          </label>
+          <label>Busca <input id="queue-search" placeholder="Prontuário, nome, telefone ou motivo"></label>
+          <button class="secondary" id="queue-filter-button">Buscar</button>
+        </div>
+        <div id="queue-list" class="card table-wrap"></div>
+        <div id="queue-pagination" class="pagination hidden"></div>
+      </div>
+
+      <div id="page-queue-catalogs" class="page hidden">
+        <div class="page-heading"><div><h2>Cadastros da fila</h2><p>Especialidades e profissionais solicitantes usados na fila de espera.</p></div></div>
+        <form id="queue-specialty-form" class="card inline-form">
+          <label>Especialidade <input id="queue-specialty-name" required></label>
+          <button class="primary">Cadastrar especialidade</button>
+        </form>
+        <div id="queue-specialty-list" class="card table-wrap"></div>
+        <form id="queue-professional-form" class="card inline-form">
+          <label>Nome do profissional <input id="queue-professional-name" required></label>
+          <label>Especialidade <select id="queue-professional-specialty" required></select></label>
+          <button class="primary">Cadastrar profissional</button>
+        </form>
+        <div id="queue-professional-list" class="card table-wrap"></div>
+      </div>
+
       <div id="page-users" class="page hidden">
         <div class="page-heading"><div><h2>Usuários</h2><p>Pessoas que podem acessar o sistema.</p></div></div>
         <form id="user-form" class="card form-grid" autocomplete="off">
@@ -209,6 +260,14 @@
       <label id="catalog-specialty-wrap">Especialidade <input id="catalog-edit-specialty"></label>
       <div class="form-actions"><button type="button" class="secondary" data-close="catalog-dialog">Cancelar</button><button class="primary">Salvar</button></div>
     </form>
+  </dialog>
+
+  <dialog id="queue-history-dialog" class="dialog small-dialog">
+    <div>
+      <h3>Histórico da solicitação</h3>
+      <div id="queue-history-list"></div>
+      <div class="form-actions"><button type="button" class="secondary" data-close="queue-history-dialog">Fechar</button></div>
+    </div>
   </dialog>
 
   <dialog id="confirm-dialog" class="dialog small-dialog">

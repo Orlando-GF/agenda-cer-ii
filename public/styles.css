@@ -58,6 +58,7 @@ th,td{padding:9px 8px}
 .family-slots .col-observation{width:22%!important}
 .slots-table th.col-actions,.slots-table td.col-actions{padding-left:2px!important;padding-right:2px!important}
 .slot-actions{display:flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap}
+.queue-table small{color:var(--muted)}.queue-group td{background:var(--green-soft);color:var(--green);font-weight:bold;text-transform:none}.queue-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.queue-actions select{width:auto;min-width:125px;padding:6px 28px 6px 8px}.queue-status{display:inline-block;border-radius:5px;padding:4px 8px;font-size:12px;font-weight:bold}.queue-status.aguardando{background:#fff3d8;color:#8a5a00}.queue-status.chamado{background:#e5f0ff;color:#285a9f}.queue-status.atendido{background:#e5f4e9;color:#27743b}.queue-status.nao_compareceu{background:#f8e5e5;color:#b43b3b}.queue-status.desistiu,.queue-status.cancelado{background:#eee;color:#666}
 .table-action{margin-right:0}
 .clear-slot{width:28px;height:28px;border-radius:5px;background:#edf1f0!important;color:var(--ink)!important;text-decoration:none!important;font-size:15px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0!important}
 .clear-slot:hover{background:#f8e5e5!important;color:var(--red)!important}
@@ -66,7 +67,7 @@ th,td{padding:9px 8px}
 /* Organização geral das páginas: conteúdo centralizado e componentes consistentes */
 .content{max-width:none;padding-left:clamp(20px,2.4vw,42px);padding-right:clamp(20px,2.4vw,42px)}
 .page{width:min(100%,1440px);margin:0 auto}
-#page-new-schedule,#page-professionals,#page-users{width:min(100%,900px)}
+#page-new-schedule,#page-professionals,#page-users,#page-queue-catalogs{width:min(100%,900px)}
 .form-grid,.inline-form{width:100%;max-width:none;margin-left:0;margin-right:0}
 #page-professionals .inline-form,#page-users .form-grid{margin-bottom:14px}
 #page-agenda .filters{max-width:none;margin-left:0;margin-right:0}

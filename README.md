@@ -10,6 +10,8 @@ Sistema web simples para organização de agendas de consultas, exames e orienta
 - Agenda de consulta, exame ou orientação familiar sempre vinculada a um profissional responsável.
 - Agenda de exame sem exigir a seleção do exame específico do paciente.
 - Orientação familiar com prontuário do familiar vinculado ao prontuário do paciente.
+- Fila de espera por especialidade, com solicitações ordenadas pela data da solicitação médica.
+- Histórico de movimentações da fila e botão para chamar paciente com data/hora automática.
 - Tela principal com lista compacta agrupada por data, filtros de profissional, tipo, turno e situação.
 - Cadastro de vagas por prontuário, nome e observação, com suporte a paciente novo usando `novo`.
 - Bloqueio de paciente repetido e de agenda lotada.

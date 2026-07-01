@@ -4,6 +4,7 @@ interface Env {
 }
 
 type User = { id: number; name: string; username: string; role: "admin" | "atendente" };
+type QueueStatus = "aguardando" | "chamado" | "atendido" | "nao_compareceu" | "desistiu" | "cancelado";
 
 const json = (data: unknown, status = 200, headers: HeadersInit = {}) =>
   new Response(JSON.stringify(data), {
@@ -65,6 +66,13 @@ function scheduleKindLabel(kind: string): string {
   if (kind === "exame") return "Agenda de exame";
   if (kind === "orientacao") return "Orientação familiar";
   return "Consulta";
+}
+
+function queueStatus(value: unknown): QueueStatus {
+  const status = clean(value, 30);
+  return ["aguardando", "chamado", "atendido", "nao_compareceu", "desistiu", "cancelado"].includes(status)
+    ? status as QueueStatus
+    : "aguardando";
 }
 
 function isInternalNewPatientRecord(record: unknown): boolean {
@@ -378,6 +386,48 @@ async function printSchedulePage(request: Request, env: Env, id: number): Promis
   return new Response(markup, { headers: { "content-type": "text/html; charset=utf-8" } });
 }
 
+async function queueMovement(env: Env, user: User, requestId: number, action: string, fromStatus: string | null, toStatus: string | null, notes = "") {
+  await env.DB.prepare(
+    "INSERT INTO queue_movements (request_id, user_id, from_status, to_status, action, notes) VALUES (?, ?, ?, ?, ?, ?)",
+  ).bind(requestId, user.id, fromStatus, toStatus, action, notes).run();
+}
+
+async function listQueueRequests(env: Env, url: URL): Promise<Response> {
+  const specialty = Number(url.searchParams.get("specialty")) || 0;
+  const status = clean(url.searchParams.get("status"), 30) || "open";
+  const q = clean(url.searchParams.get("q"), 100);
+  const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+  const limit = 80;
+  const offset = (page - 1) * limit;
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (specialty) {
+    where.push("r.specialty_id = ?");
+    params.push(specialty);
+  }
+  if (status === "open") {
+    where.push("r.status IN ('aguardando', 'chamado')");
+  } else if (status !== "all") {
+    where.push("r.status = ?");
+    params.push(queueStatus(status));
+  }
+  if (q) {
+    where.push("(r.record_number LIKE ? OR r.patient_name LIKE ? OR r.phone LIKE ? OR r.requested_procedure LIKE ?)");
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  const result = await env.DB.prepare(
+    `SELECT r.*, s.name specialty_name, p.name requester_name
+     FROM queue_requests r
+     JOIN queue_specialties s ON s.id = r.specialty_id
+     JOIN queue_professionals p ON p.id = r.requester_id
+     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+     ORDER BY lower(s.name), r.medical_request_date ASC, r.entered_at ASC, r.id ASC
+     LIMIT ? OFFSET ?`,
+  ).bind(...params, limit + 1, offset).all();
+  const rows = result.results ?? [];
+  return json({ items: rows.slice(0, limit), page, hasMore: rows.length > limit });
+}
+
 async function api(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -453,6 +503,137 @@ async function api(request: Request, env: Env): Promise<Response> {
     }
     await audit(env, user, "user.update", "user", id, { name, role: data.role === "admin" ? "admin" : "atendente", active: !!data.active, passwordChanged: !!password });
     return json({ ok: true });
+  }
+
+  if (path === "/api/queue/specialties" && request.method === "GET") {
+    return json((await env.DB.prepare("SELECT * FROM queue_specialties ORDER BY active DESC, name").all()).results);
+  }
+  if (path === "/api/queue/specialties" && request.method === "POST") {
+    const data = await body(request);
+    const name = titleCaseText(data.name, 120);
+    if (!name) return error("Informe o nome da especialidade.");
+    try {
+      const result = await env.DB.prepare("INSERT INTO queue_specialties (name) VALUES (?)").bind(name).run();
+      await audit(env, user, "queue_specialty.create", "queue_specialty", Number(result.meta.last_row_id), { name });
+      return json({ id: result.meta.last_row_id }, 201);
+    } catch {
+      return error("Essa especialidade já existe.", 409);
+    }
+  }
+  const queueSpecialtyId = path.match(/^\/api\/queue\/specialties\/(\d+)$/);
+  if (queueSpecialtyId && request.method === "PATCH") {
+    const data = await body(request);
+    const id = Number(queueSpecialtyId[1]);
+    const name = titleCaseText(data.name, 120);
+    if (!name) return error("Informe o nome da especialidade.");
+    try {
+      await env.DB.prepare("UPDATE queue_specialties SET name = ?, active = ? WHERE id = ?").bind(name, data.active ? 1 : 0, id).run();
+      await audit(env, user, "queue_specialty.update", "queue_specialty", id, { name, active: !!data.active });
+      return json({ ok: true });
+    } catch {
+      return error("Essa especialidade já existe.", 409);
+    }
+  }
+
+  if (path === "/api/queue/professionals" && request.method === "GET") {
+    return json((await env.DB.prepare(
+      `SELECT p.*, s.name specialty_name
+       FROM queue_professionals p
+       JOIN queue_specialties s ON s.id = p.specialty_id
+       ORDER BY p.active DESC, lower(s.name), lower(p.name)`,
+    ).all()).results);
+  }
+  if (path === "/api/queue/professionals" && request.method === "POST") {
+    const data = await body(request);
+    const name = titleCaseText(data.name, 120);
+    const specialtyId = Number(data.specialty_id);
+    if (!name || !specialtyId) return error("Informe nome e especialidade do profissional.");
+    const result = await env.DB.prepare("INSERT INTO queue_professionals (name, specialty_id) VALUES (?, ?)").bind(name, specialtyId).run();
+    await audit(env, user, "queue_professional.create", "queue_professional", Number(result.meta.last_row_id), { name, specialtyId });
+    return json({ id: result.meta.last_row_id }, 201);
+  }
+  const queueProfessionalId = path.match(/^\/api\/queue\/professionals\/(\d+)$/);
+  if (queueProfessionalId && request.method === "PATCH") {
+    const data = await body(request);
+    const id = Number(queueProfessionalId[1]);
+    const name = titleCaseText(data.name, 120);
+    const specialtyId = Number(data.specialty_id);
+    if (!name || !specialtyId) return error("Informe nome e especialidade do profissional.");
+    await env.DB.prepare("UPDATE queue_professionals SET name = ?, specialty_id = ?, active = ? WHERE id = ?").bind(name, specialtyId, data.active ? 1 : 0, id).run();
+    await audit(env, user, "queue_professional.update", "queue_professional", id, { name, specialtyId, active: !!data.active });
+    return json({ ok: true });
+  }
+
+  if (path === "/api/queue/requests" && request.method === "GET") return listQueueRequests(env, url);
+  if (path === "/api/queue/requests" && request.method === "POST") {
+    const data = await body(request);
+    const record = upperCaseText(data.record_number, 50);
+    const patientName = upperCaseText(data.patient_name, 150);
+    const phone = clean(data.phone, 30);
+    const specialtyId = Number(data.specialty_id);
+    const requesterId = Number(data.requester_id);
+    const procedure = upperCaseText(data.requested_procedure, 300);
+    const medicalDate = clean(data.medical_request_date, 10);
+    const observation = upperCaseText(data.observation, 500);
+    if (!record || !patientName || !specialtyId || !requesterId || !procedure || !medicalDate) {
+      return error("Preencha prontuário, paciente, especialidade, profissional, motivo e data da solicitação.");
+    }
+    const duplicate = await env.DB.prepare(
+      `SELECT COUNT(*) total FROM queue_requests
+       WHERE record_number = ? AND specialty_id = ? AND status IN ('aguardando', 'chamado')`,
+    ).bind(record, specialtyId).first<{ total: number }>();
+    const result = await env.DB.prepare(
+      `INSERT INTO queue_requests
+       (record_number, patient_name, phone, specialty_id, requester_id, requested_procedure, medical_request_date, observation, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(record, patientName, phone, specialtyId, requesterId, procedure, medicalDate, observation, user.id).run();
+    const id = Number(result.meta.last_row_id);
+    await queueMovement(env, user, id, "created", null, "aguardando", "Solicitação incluída na fila.");
+    await audit(env, user, "queue_request.create", "queue_request", id, { record, patientName, specialtyId });
+    return json({ id, warning: Number(duplicate?.total ?? 0) > 0 ? "Este prontuário já possui solicitação em aberto nesta especialidade." : "" }, 201);
+  }
+  const queueRequestId = path.match(/^\/api\/queue\/requests\/(\d+)$/);
+  if (queueRequestId && request.method === "PATCH") {
+    const data = await body(request);
+    const id = Number(queueRequestId[1]);
+    const current = await env.DB.prepare("SELECT * FROM queue_requests WHERE id = ?").bind(id).first<{ status: QueueStatus } & Record<string, unknown>>();
+    if (!current) return error("Solicitação não encontrada.", 404);
+    const status = data.status === undefined ? current.status : queueStatus(data.status);
+    const record = data.record_number === undefined ? String(current.record_number) : upperCaseText(data.record_number, 50);
+    const patientName = data.patient_name === undefined ? String(current.patient_name) : upperCaseText(data.patient_name, 150);
+    const phone = data.phone === undefined ? String(current.phone ?? "") : clean(data.phone, 30);
+    const specialtyId = data.specialty_id === undefined ? Number(current.specialty_id) : Number(data.specialty_id);
+    const requesterId = data.requester_id === undefined ? Number(current.requester_id) : Number(data.requester_id);
+    const procedure = data.requested_procedure === undefined ? String(current.requested_procedure) : upperCaseText(data.requested_procedure, 300);
+    const medicalDate = data.medical_request_date === undefined ? String(current.medical_request_date) : clean(data.medical_request_date, 10);
+    const observation = data.observation === undefined ? String(current.observation ?? "") : upperCaseText(data.observation, 500);
+    if (!record || !patientName || !specialtyId || !requesterId || !procedure || !medicalDate) return error("Preencha os campos obrigatórios.");
+    const calledAt = status === "chamado" && current.status !== "chamado" ? "CURRENT_TIMESTAMP" : "?";
+    const calledParam = calledAt === "?" ? [current.called_at ?? null] : [];
+    await env.DB.prepare(
+      `UPDATE queue_requests
+       SET record_number = ?, patient_name = ?, phone = ?, specialty_id = ?, requester_id = ?, requested_procedure = ?,
+           medical_request_date = ?, status = ?, called_at = ${calledAt}, observation = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+    ).bind(record, patientName, phone, specialtyId, requesterId, procedure, medicalDate, status, ...calledParam, observation, id).run();
+    if (status !== current.status) {
+      await queueMovement(env, user, id, status === "chamado" ? "called" : "status", current.status, status, clean(data.notes, 300));
+    } else {
+      await queueMovement(env, user, id, "updated", current.status, status, "Dados da solicitação atualizados.");
+    }
+    await audit(env, user, "queue_request.update", "queue_request", id, { status, record, patientName });
+    return json({ ok: true });
+  }
+  const queueMovementsId = path.match(/^\/api\/queue\/requests\/(\d+)\/movements$/);
+  if (queueMovementsId && request.method === "GET") {
+    const result = await env.DB.prepare(
+      `SELECT m.*, u.name user_name
+       FROM queue_movements m
+       LEFT JOIN users u ON u.id = m.user_id
+       WHERE m.request_id = ?
+       ORDER BY m.created_at DESC, m.id DESC`,
+    ).bind(Number(queueMovementsId[1])).all();
+    return json(result.results);
   }
 
   if (path === "/api/schedules" && request.method === "GET") return listSchedules(env, url);
