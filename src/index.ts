@@ -44,6 +44,14 @@ function upperCaseText(value: unknown, max = 200): string {
   return clean(value, max).replace(/\s+/g, " ").toLocaleUpperCase("pt-BR");
 }
 
+function phoneMask(value: unknown): string {
+  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 function isNewPatientRecord(record: string): boolean {
   return record.trim().toLowerCase() === "novo";
 }
@@ -569,7 +577,7 @@ async function api(request: Request, env: Env): Promise<Response> {
     const data = await body(request);
     const record = upperCaseText(data.record_number, 50);
     const patientName = upperCaseText(data.patient_name, 150);
-    const phone = clean(data.phone, 30);
+    const phone = phoneMask(data.phone);
     const specialtyId = Number(data.specialty_id);
     const requesterId = Number(data.requester_id);
     const procedure = upperCaseText(data.requested_procedure, 300);
@@ -601,7 +609,7 @@ async function api(request: Request, env: Env): Promise<Response> {
     const status = data.status === undefined ? current.status : queueStatus(data.status);
     const record = data.record_number === undefined ? String(current.record_number) : upperCaseText(data.record_number, 50);
     const patientName = data.patient_name === undefined ? String(current.patient_name) : upperCaseText(data.patient_name, 150);
-    const phone = data.phone === undefined ? String(current.phone ?? "") : clean(data.phone, 30);
+    const phone = data.phone === undefined ? String(current.phone ?? "") : phoneMask(data.phone);
     const specialtyId = data.specialty_id === undefined ? Number(current.specialty_id) : Number(data.specialty_id);
     const requesterId = data.requester_id === undefined ? Number(current.requester_id) : Number(data.requester_id);
     const procedure = data.requested_procedure === undefined ? String(current.requested_procedure) : upperCaseText(data.requested_procedure, 300);

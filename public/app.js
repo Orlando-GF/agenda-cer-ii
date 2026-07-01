@@ -16,6 +16,13 @@
   function normalizeNameInput(el){if(el)el.value=titleCaseText(el.value)}
   function upperCaseText(value){return String(value||"").trim().replace(/\s+/g," ").toLocaleUpperCase("pt-BR")}
   function normalizeSlotInput(el){if(el)el.value=upperCaseText(el.value)}
+  function phoneMask(value){
+    var digits=String(value||"").replace(/\D/g,"").slice(0,11);
+    if(digits.length<=2)return digits;
+    if(digits.length<=6)return"("+digits.slice(0,2)+") "+digits.slice(2);
+    if(digits.length<=10)return"("+digits.slice(0,2)+") "+digits.slice(2,6)+"-"+digits.slice(6);
+    return"("+digits.slice(0,2)+") "+digits.slice(2,7)+"-"+digits.slice(7);
+  }
   var periodName={manha:"Manhã",tarde:"Tarde",noite:"Noite"};
   var dateBr=function(v){if(!v)return"";var p=v.split("-");return p[2]+"/"+p[1]+"/"+p[0]};
   var weekdayBr=function(v){var p=v.split("-"),d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));return ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"][d.getDay()]};
@@ -415,7 +422,7 @@
     var payload={
       record_number:upperCaseText($("queue-record").value),
       patient_name:upperCaseText($("queue-patient").value),
-      phone:$("queue-phone").value.trim(),
+      phone:phoneMask($("queue-phone").value),
       specialty_id:$("queue-specialty").value,
       requester_id:$("queue-requester").value,
       requested_procedure:upperCaseText($("queue-procedure").value),
@@ -430,6 +437,8 @@
       loadQueueRequests();
     }catch(err){toast(err.message,true)}
   });
+  $("queue-phone").addEventListener("input",function(e){e.target.value=phoneMask(e.target.value)});
+  $("queue-phone").addEventListener("blur",function(e){e.target.value=phoneMask(e.target.value)});
   ["queue-record","queue-patient","queue-procedure","queue-observation"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeSlotInput(el)})});
   async function loadQueueRequests(){
     try{
