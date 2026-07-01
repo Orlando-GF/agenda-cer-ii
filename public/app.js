@@ -400,8 +400,8 @@
   function activeQueueSpecialtyOptions(selected){
     return '<option value="">Selecione...</option>'+state.queueSpecialties.filter(function(x){return x.active||String(x.id)===String(selected||"")}).map(function(x){return'<option value="'+x.id+'" '+(String(x.id)===String(selected||"")?"selected":"")+'>'+esc(x.name)+'</option>'}).join("");
   }
-  function activeQueueProfessionalOptions(selected,specialtyId){
-    return '<option value="">Selecione...</option>'+state.queueProfessionals.filter(function(x){return (x.active||String(x.id)===String(selected||""))&&(!specialtyId||String(x.specialty_id)===String(specialtyId))}).map(function(x){return'<option value="'+x.id+'" '+(String(x.id)===String(selected||"")?"selected":"")+'>'+esc(x.name)+' — '+esc(x.specialty_name)+'</option>'}).join("");
+  function activeQueueProfessionalOptions(selected){
+    return '<option value="">Selecione...</option>'+state.queueProfessionals.filter(function(x){return x.active||String(x.id)===String(selected||"")}).map(function(x){return'<option value="'+x.id+'" '+(String(x.id)===String(selected||"")?"selected":"")+'>'+esc(x.name)+' — '+esc(x.specialty_name)+'</option>'}).join("");
   }
   async function loadWaitlistPage(){
     try{
@@ -414,9 +414,8 @@
     }catch(e){toast(e.message,true)}
   }
   function updateQueueRequesterOptions(){
-    $("queue-requester").innerHTML=activeQueueProfessionalOptions("",$("queue-specialty").value);
+    $("queue-requester").innerHTML=activeQueueProfessionalOptions("");
   }
-  $("queue-specialty").addEventListener("change",updateQueueRequesterOptions);
   $("queue-request-form").addEventListener("submit",async function(e){
     e.preventDefault();
     var payload={
