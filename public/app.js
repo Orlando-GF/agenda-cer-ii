@@ -456,11 +456,12 @@
   }
   function renderQueueTable(rows){
     var lastSpecialty="";
-    return '<table class="queue-table"><thead><tr><th>Solicitação</th><th>Paciente</th><th>Telefone</th><th>Profissional</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){
+    return '<table class="queue-table"><thead><tr><th>Solicitação</th><th>Paciente</th><th>Telefone</th><th>Profissional</th><th>Status</th><th>Posição</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){
       var open=!!queueOpenStatuses[x.status],called=x.called_at?'<br><small>Chamado: '+dateTimeBr(x.called_at)+'</small>':"";
-      var group=lastSpecialty!==x.specialty_name?'<tr class="queue-group"><td colspan="6">'+esc(x.specialty_name)+'</td></tr>':"";
+      var position=x.queue_position?x.queue_position+"º da fila":"Histórico";
+      var group=lastSpecialty!==x.specialty_name?'<tr class="queue-group"><td colspan="7">'+esc(x.specialty_name)+'</td></tr>':"";
       lastSpecialty=x.specialty_name;
-      return group+'<tr><td>'+dateBr(x.medical_request_date)+'<br><small>'+esc(x.requested_procedure)+'</small></td><td><strong>'+esc(x.record_number)+'</strong><br>'+esc(x.patient_name)+'</td><td>'+esc(x.phone||"")+'</td><td>'+esc(x.requester_name)+'</td><td><span class="queue-status '+esc(x.status)+'">'+esc(queueStatusNames[x.status]||x.status)+'</span>'+called+'</td><td class="queue-actions"><button class="table-action queue-edit" data-id="'+x.id+'">Editar</button>'+(x.status==="aguardando"?'<button class="table-action queue-call" data-id="'+x.id+'">Chamar</button>':"")+(open?'<select class="queue-status-change" data-id="'+x.id+'"><option value="">Alterar...</option><option value="atendido">Atendido</option><option value="nao_compareceu">Não compareceu</option><option value="desistiu">Desistiu</option><option value="cancelado">Cancelado</option></select>':"")+'<button class="table-action queue-history" data-id="'+x.id+'">Histórico</button></td></tr>';
+      return group+'<tr><td>'+dateBr(x.medical_request_date)+'<br><small>'+esc(x.requested_procedure)+'</small></td><td><strong>'+esc(x.record_number)+'</strong><br>'+esc(x.patient_name)+'</td><td>'+esc(x.phone||"")+'</td><td>'+esc(x.requester_name)+'</td><td><span class="queue-status '+esc(x.status)+'">'+esc(queueStatusNames[x.status]||x.status)+'</span>'+called+'</td><td><strong>'+esc(position)+'</strong></td><td class="queue-actions"><button class="table-action queue-edit" data-id="'+x.id+'">Editar</button>'+(x.status==="aguardando"?'<button class="table-action queue-call" data-id="'+x.id+'">Chamar</button>':"")+(open?'<select class="queue-status-change" data-id="'+x.id+'"><option value="">Alterar...</option><option value="atendido">Atendido</option><option value="nao_compareceu">Não compareceu</option><option value="desistiu">Desistiu</option><option value="cancelado">Cancelado</option></select>':"")+'<button class="table-action queue-history" data-id="'+x.id+'">Histórico</button></td></tr>';
     }).join("")+'</tbody></table>';
   }
   function dateTimeBr(value){

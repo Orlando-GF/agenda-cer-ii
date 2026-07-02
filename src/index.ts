@@ -420,11 +420,25 @@ async function listQueueRequests(env: Env, url: URL): Promise<Response> {
     params.push(queueStatus(status));
   }
   if (q) {
-    where.push("(r.record_number LIKE ? OR r.patient_name LIKE ? OR r.phone LIKE ? OR r.requested_procedure LIKE ?)");
-    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+    where.push("(r.record_number LIKE ? OR r.patient_name LIKE ?)");
+    params.push(`%${q}%`, `%${q}%`);
   }
   const result = await env.DB.prepare(
-    `SELECT r.*, s.name specialty_name, p.name requester_name
+    `SELECT r.*, s.name specialty_name, p.name requester_name,
+            CASE
+              WHEN r.status IN ('aguardando', 'chamado') THEN (
+                SELECT COUNT(*)
+                FROM queue_requests qpos
+                WHERE qpos.specialty_id = r.specialty_id
+                  AND qpos.status IN ('aguardando', 'chamado')
+                  AND (
+                    qpos.medical_request_date < r.medical_request_date
+                    OR (qpos.medical_request_date = r.medical_request_date AND qpos.entered_at < r.entered_at)
+                    OR (qpos.medical_request_date = r.medical_request_date AND qpos.entered_at = r.entered_at AND qpos.id <= r.id)
+                  )
+              )
+              ELSE NULL
+            END queue_position
      FROM queue_requests r
      JOIN queue_specialties s ON s.id = r.specialty_id
      JOIN queue_professionals p ON p.id = r.requester_id
