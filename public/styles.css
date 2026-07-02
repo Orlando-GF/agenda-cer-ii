@@ -67,7 +67,7 @@ th,td{padding:9px 8px}
 /* Organização geral das páginas: conteúdo centralizado e componentes consistentes */
 .content{max-width:none;padding-left:clamp(20px,2.4vw,42px);padding-right:clamp(20px,2.4vw,42px)}
 .page{width:min(100%,1440px);margin:0 auto}
-#page-new-schedule,#page-professionals,#page-users,#page-queue-catalogs{width:min(100%,900px)}
+#page-new-schedule,#page-new-queue-request,#page-professionals,#page-users,#page-queue-catalogs{width:min(100%,900px)}
 .form-grid,.inline-form{width:100%;max-width:none;margin-left:0;margin-right:0}
 #page-professionals .inline-form,#page-users .form-grid{margin-bottom:14px}
 #page-agenda .filters{max-width:none;margin-left:0;margin-right:0}

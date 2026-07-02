@@ -48,8 +48,9 @@
         <button data-page="professionals" class="nav-item nav-subitem"><span class="nav-icon">🩺</span><span>Profissionais</span></button>
 
         <div class="nav-section">Fila de espera</div>
-        <button data-page="waitlist" class="nav-item nav-subitem"><span class="nav-icon">📋</span><span>Solicitações</span></button>
-        <button data-page="queue-catalogs" class="nav-item nav-subitem"><span class="nav-icon">🗂️</span><span>Cadastros da fila</span></button>
+        <button data-page="waitlist" class="nav-item nav-subitem"><span class="nav-icon">📋</span><span>Fila de espera</span></button>
+        <button data-page="new-queue-request" class="nav-item nav-subitem"><span class="nav-icon">＋</span><span>Nova solicitação</span></button>
+        <button data-page="queue-catalogs" class="nav-item nav-subitem"><span class="nav-icon">🗂️</span><span>Especialidades e solicitantes</span></button>
 
         <div class="nav-section admin-only">Sistema</div>
         <button data-page="users" class="nav-item nav-subitem admin-only"><span class="nav-icon">👤</span><span>Usuários</span></button>
@@ -150,18 +151,10 @@
       </div>
 
       <div id="page-waitlist" class="page hidden">
-        <div class="page-heading"><div><h2>Fila de espera</h2><p>Solicitações separadas por especialidade, ordenadas pela data da solicitação médica.</p></div></div>
-        <form id="queue-request-form" class="card form-grid">
-          <label>Número do prontuário <input id="queue-record" required></label>
-          <label>Nome do paciente <input id="queue-patient" required></label>
-          <label>Telefone/WhatsApp <input id="queue-phone" inputmode="numeric" placeholder="(00) 00000-0000" maxlength="15"></label>
-          <label>Especialidade solicitada <select id="queue-specialty" required></select></label>
-          <label>Profissional solicitante <select id="queue-requester" required></select></label>
-          <label>Data da solicitação médica <input id="queue-medical-date" type="date" required></label>
-          <label class="full">Motivo/procedimento solicitado <input id="queue-procedure" required></label>
-          <label class="full">Observação <textarea id="queue-observation" rows="2"></textarea></label>
-          <div class="form-actions full"><button class="primary">Adicionar à fila</button></div>
-        </form>
+        <div class="page-heading">
+          <div><h2>Fila de espera</h2><p>Acompanhe as solicitações por especialidade, com as mais antigas primeiro.</p></div>
+          <button class="primary" data-go="new-queue-request">＋ Nova solicitação</button>
+        </div>
         <div class="filters card">
           <label>Especialidade <select id="queue-filter-specialty"><option value="">Todas</option></select></label>
           <label>Status
@@ -183,8 +176,23 @@
         <div id="queue-pagination" class="pagination hidden"></div>
       </div>
 
+      <div id="page-new-queue-request" class="page hidden">
+        <div class="page-heading"><div><h2>Nova solicitação</h2><p>Cadastre uma nova entrada na fila de espera do paciente.</p></div></div>
+        <form id="queue-request-form" class="card form-grid">
+          <label>Número do prontuário <input id="queue-record" required></label>
+          <label>Nome do paciente <input id="queue-patient" required></label>
+          <label>Telefone/WhatsApp <input id="queue-phone" inputmode="numeric" placeholder="(00) 00000-0000" maxlength="15"></label>
+          <label>Especialidade solicitada <select id="queue-specialty" required></select></label>
+          <label>Profissional solicitante <select id="queue-requester" required></select></label>
+          <label>Data da solicitação médica <input id="queue-medical-date" type="date" required></label>
+          <label class="full">Motivo/procedimento solicitado <input id="queue-procedure" required></label>
+          <label class="full">Observação <textarea id="queue-observation" rows="2"></textarea></label>
+          <div class="form-actions full"><button class="primary">Adicionar à fila</button></div>
+        </form>
+      </div>
+
       <div id="page-queue-catalogs" class="page hidden">
-        <div class="page-heading"><div><h2>Cadastros da fila</h2><p>Especialidades e profissionais solicitantes usados na fila de espera.</p></div></div>
+        <div class="page-heading"><div><h2>Especialidades e solicitantes</h2><p>Cadastre as especialidades da fila e os profissionais que podem solicitar atendimento.</p></div></div>
         <form id="queue-specialty-form" class="card inline-form">
           <label>Especialidade <input id="queue-specialty-name" required></label>
           <button class="primary">Cadastrar especialidade</button>

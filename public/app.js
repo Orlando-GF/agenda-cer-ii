@@ -65,6 +65,7 @@
     if(page==="agenda")loadSchedules();
     if(page==="professionals")loadProfessionals(true);
     if(page==="waitlist")loadWaitlistPage();
+    if(page==="new-queue-request")loadNewQueueRequestPage();
     if(page==="queue-catalogs")loadQueueCatalogPage();
     if(page==="users"){clearUserForm();loadUsers()}
     if(page==="new-schedule")loadCatalogs();
@@ -406,11 +407,16 @@
   async function loadWaitlistPage(){
     try{
       await loadQueueCatalogs();
+      $("queue-filter-specialty").innerHTML='<option value="">Todas</option>'+state.queueSpecialties.map(function(x){return'<option value="'+x.id+'">'+esc(x.name)+(x.active?"":" — inativa")+'</option>'}).join("");
+      loadQueueRequests();
+    }catch(e){toast(e.message,true)}
+  }
+  async function loadNewQueueRequestPage(){
+    try{
+      await loadQueueCatalogs();
       if(!$("queue-medical-date").value)$("queue-medical-date").value=today();
       $("queue-specialty").innerHTML=activeQueueSpecialtyOptions();
-      $("queue-filter-specialty").innerHTML='<option value="">Todas</option>'+state.queueSpecialties.map(function(x){return'<option value="'+x.id+'">'+esc(x.name)+(x.active?"":" — inativa")+'</option>'}).join("");
       updateQueueRequesterOptions();
-      loadQueueRequests();
     }catch(e){toast(e.message,true)}
   }
   function updateQueueRequesterOptions(){
@@ -433,7 +439,7 @@
       $("queue-request-form").reset();
       $("queue-medical-date").value=today();
       toast(result.warning||"Solicitação adicionada à fila.",!!result.warning);
-      loadQueueRequests();
+      loadNewQueueRequestPage();
     }catch(err){toast(err.message,true)}
   });
   $("queue-phone").addEventListener("input",function(e){e.target.value=phoneMask(e.target.value)});
