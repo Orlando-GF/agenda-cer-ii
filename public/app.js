@@ -427,6 +427,14 @@
   function updateQueueRequesterOptions(){
     $("queue-requester").innerHTML=activeQueueProfessionalOptions("");
   }
+  function showQueueCatalogTab(tabId){
+    document.querySelectorAll("#page-queue-catalogs .tab-panel").forEach(function(panel){panel.classList.toggle("hidden",panel.id!==tabId)});
+    document.querySelectorAll("#page-queue-catalogs .tab-button").forEach(function(button){button.classList.toggle("active",button.getAttribute("data-tab")===tabId)});
+  }
+  document.addEventListener("click",function(e){
+    if(!e.target.classList.contains("tab-button"))return;
+    showQueueCatalogTab(e.target.getAttribute("data-tab"));
+  });
   $("queue-request-form").addEventListener("submit",async function(e){
     e.preventDefault();
     var payload={

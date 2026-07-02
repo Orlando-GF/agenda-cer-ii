@@ -193,22 +193,33 @@
 
       <div id="page-queue-catalogs" class="page hidden">
         <div class="page-heading"><div><h2>Cadastros da fila</h2><p>Cadastre especialidades, profissionais solicitantes e motivos/procedimentos padronizados.</p></div></div>
-        <form id="queue-specialty-form" class="card inline-form">
-          <label>Especialidade <input id="queue-specialty-name" required></label>
-          <button class="primary">Cadastrar especialidade</button>
-        </form>
-        <div id="queue-specialty-list" class="card table-wrap"></div>
-        <form id="queue-professional-form" class="card inline-form">
-          <label>Nome do profissional <input id="queue-professional-name" required></label>
-          <label>Especialidade do profissional <select id="queue-professional-specialty" required></select></label>
-          <button class="primary">Cadastrar profissional</button>
-        </form>
-        <div id="queue-professional-list" class="card table-wrap"></div>
-        <form id="queue-procedure-form" class="card inline-form">
-          <label>Motivo/procedimento <input id="queue-procedure-name" required></label>
-          <button class="primary">Cadastrar procedimento</button>
-        </form>
-        <div id="queue-procedure-list" class="card table-wrap"></div>
+        <div class="tabs" role="tablist" aria-label="Cadastros da fila">
+          <button type="button" class="tab-button active" data-tab="queue-specialties-tab">Especialidades</button>
+          <button type="button" class="tab-button" data-tab="queue-professionals-tab">Solicitantes</button>
+          <button type="button" class="tab-button" data-tab="queue-procedures-tab">Procedimentos</button>
+        </div>
+        <div id="queue-specialties-tab" class="tab-panel">
+          <form id="queue-specialty-form" class="card inline-form">
+            <label>Especialidade <input id="queue-specialty-name" required></label>
+            <button class="primary">Cadastrar especialidade</button>
+          </form>
+          <div id="queue-specialty-list" class="card table-wrap"></div>
+        </div>
+        <div id="queue-professionals-tab" class="tab-panel hidden">
+          <form id="queue-professional-form" class="card inline-form">
+            <label>Nome do profissional <input id="queue-professional-name" required></label>
+            <label>Especialidade do profissional <select id="queue-professional-specialty" required></select></label>
+            <button class="primary">Cadastrar profissional</button>
+          </form>
+          <div id="queue-professional-list" class="card table-wrap"></div>
+        </div>
+        <div id="queue-procedures-tab" class="tab-panel hidden">
+          <form id="queue-procedure-form" class="card inline-form">
+            <label>Motivo/procedimento <input id="queue-procedure-name" required></label>
+            <button class="primary">Cadastrar procedimento</button>
+          </form>
+          <div id="queue-procedure-list" class="card table-wrap"></div>
+        </div>
       </div>
 
       <div id="page-users" class="page hidden">
