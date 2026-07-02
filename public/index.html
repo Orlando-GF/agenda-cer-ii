@@ -185,7 +185,11 @@
           <label>Especialidade solicitada <select id="queue-specialty" required></select></label>
           <label>Profissional solicitante <select id="queue-requester" required></select></label>
           <label>Data da solicitação médica <input id="queue-medical-date" type="date" required></label>
-          <label class="full">Motivo/procedimento solicitado <select id="queue-procedure" required></select></label>
+          <div class="full field-block">
+            <strong>Motivo/procedimento solicitado</strong>
+            <div id="queue-procedure-options" class="checkbox-list"></div>
+          </div>
+          <label id="queue-procedure-other-wrap" class="full hidden">Descreva <input id="queue-procedure-other"></label>
           <label class="full">Observação <textarea id="queue-observation" rows="2"></textarea></label>
           <div class="form-actions full"><button class="primary">Adicionar à fila</button></div>
         </form>
@@ -216,6 +220,7 @@
         <div id="queue-procedures-tab" class="tab-panel hidden">
           <form id="queue-procedure-form" class="card inline-form">
             <label>Motivo/procedimento <input id="queue-procedure-name" required></label>
+            <label>Especialidade vinculada <select id="queue-procedure-specialty" required></select></label>
             <button class="primary">Cadastrar procedimento</button>
           </form>
           <div id="queue-procedure-list" class="card table-wrap"></div>
@@ -319,7 +324,11 @@
           <option value="cancelado">Cancelado</option>
         </select>
       </label>
-      <label>Motivo/procedimento solicitado <select id="queue-edit-procedure" required></select></label>
+      <div class="field-block">
+        <strong>Motivo/procedimento solicitado</strong>
+        <div id="queue-edit-procedure-options" class="checkbox-list"></div>
+      </div>
+      <label id="queue-edit-procedure-other-wrap" class="hidden">Descreva <input id="queue-edit-procedure-other"></label>
       <label>Observação <textarea id="queue-edit-observation" rows="3"></textarea></label>
       <div class="form-actions"><button type="button" class="secondary" data-close="queue-request-edit-dialog">Cancelar</button><button class="primary">Salvar</button></div>
     </form>
@@ -349,6 +358,7 @@
       <h3>Editar procedimento</h3>
       <input id="queue-procedure-edit-id" type="hidden">
       <label>Motivo/procedimento <input id="queue-procedure-edit-name" required></label>
+      <label>Especialidade vinculada <select id="queue-procedure-edit-specialty" required></select></label>
       <div class="form-actions"><button type="button" class="secondary" data-close="queue-procedure-edit-dialog">Cancelar</button><button class="primary">Salvar</button></div>
     </form>
   </dialog>
