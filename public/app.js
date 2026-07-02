@@ -40,6 +40,11 @@
   var periodLabel=function(period,time){return'<span class="period-badge '+esc(period)+'">'+esc(periodName[period]||period)+(time?" • "+esc(time):"")+'</span>'};
   var queueStatusNames={aguardando:"Aguardando",chamado:"Chamado",atendido:"Atendido",nao_compareceu:"Não compareceu",desistiu:"Desistiu",cancelado:"Cancelado"};
   var queueOpenStatuses={aguardando:true,chamado:true};
+  function specialtyColorClass(name){
+    var text=String(name||""),sum=0;
+    for(var i=0;i<text.length;i++)sum+=text.charCodeAt(i);
+    return"specialty-color-"+(sum%8);
+  }
   function today(){var d=new Date(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return d.getFullYear()+"-"+m+"-"+day}
   function oneMonthAgo(){var d=new Date();d.setMonth(d.getMonth()-1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
   async function api(path,options){
@@ -472,7 +477,7 @@
       var called=x.called_at?'<br><small>Chamado: '+dateTimeBr(x.called_at)+'</small>':"";
       var position=x.queue_position?x.queue_position+"º da fila":"Histórico";
       var actions='<details class="queue-action-menu"><summary title="Ações" aria-label="Ações">⋯</summary><div><button type="button" class="queue-menu-action queue-edit" data-id="'+x.id+'">✏️ Editar</button>'+(x.status==="aguardando"?'<button type="button" class="queue-menu-action queue-call" data-id="'+x.id+'">📣 Chamar</button>':"")+'<button type="button" class="queue-menu-action queue-history" data-id="'+x.id+'">🕘 Histórico</button></div></details>';
-      return '<tr><td><span class="queue-specialty-badge">'+esc(x.specialty_name)+'</span></td><td>'+dateBr(x.medical_request_date)+'<br><small>'+esc(x.procedure_name||x.requested_procedure)+'</small></td><td><strong>'+esc(x.record_number)+'</strong><br>'+esc(x.patient_name)+'</td><td>'+esc(x.phone||"")+'</td><td>'+esc(x.requester_name)+'</td><td><span class="queue-status '+esc(x.status)+'">'+esc(queueStatusNames[x.status]||x.status)+'</span>'+called+'</td><td><strong>'+esc(position)+'</strong></td><td class="queue-actions">'+actions+'</td></tr>';
+      return '<tr><td><span class="queue-specialty-badge '+specialtyColorClass(x.specialty_name)+'">'+esc(x.specialty_name)+'</span></td><td>'+dateBr(x.medical_request_date)+'<br><small>'+esc(x.procedure_name||x.requested_procedure)+'</small></td><td><strong>'+esc(x.record_number)+'</strong><br>'+esc(x.patient_name)+'</td><td>'+esc(x.phone||"")+'</td><td>'+esc(x.requester_name)+'</td><td><span class="queue-status '+esc(x.status)+'">'+esc(queueStatusNames[x.status]||x.status)+'</span>'+called+'</td><td><strong>'+esc(position)+'</strong></td><td class="queue-actions">'+actions+'</td></tr>';
     }).join("")+'</tbody></table>';
   }
   function dateTimeBr(value){
