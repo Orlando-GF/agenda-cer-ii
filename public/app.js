@@ -457,11 +457,11 @@
   function renderQueueTable(rows){
     var lastSpecialty="";
     return '<table class="queue-table"><thead><tr><th>Solicitação</th><th>Paciente</th><th>Telefone</th><th>Profissional</th><th>Status</th><th>Posição</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){
-      var open=!!queueOpenStatuses[x.status],called=x.called_at?'<br><small>Chamado: '+dateTimeBr(x.called_at)+'</small>':"";
+      var called=x.called_at?'<br><small>Chamado: '+dateTimeBr(x.called_at)+'</small>':"";
       var position=x.queue_position?x.queue_position+"º da fila":"Histórico";
       var group=lastSpecialty!==x.specialty_name?'<tr class="queue-group"><td colspan="7">'+esc(x.specialty_name)+'</td></tr>':"";
       lastSpecialty=x.specialty_name;
-      var actions='<details class="queue-action-menu"><summary title="Ações" aria-label="Ações">⋯</summary><div><button type="button" class="queue-menu-action queue-edit" data-id="'+x.id+'">✏️ Editar</button>'+(x.status==="aguardando"?'<button type="button" class="queue-menu-action queue-call" data-id="'+x.id+'">📣 Chamar</button>':"")+(open?'<label>Alterar status<select class="queue-status-change" data-id="'+x.id+'"><option value="">Selecione...</option><option value="atendido">Atendido</option><option value="nao_compareceu">Não compareceu</option><option value="desistiu">Desistiu</option><option value="cancelado">Cancelado</option></select></label>':"")+'<button type="button" class="queue-menu-action queue-history" data-id="'+x.id+'">🕘 Histórico</button></div></details>';
+      var actions='<details class="queue-action-menu"><summary title="Ações" aria-label="Ações">⋯</summary><div><button type="button" class="queue-menu-action queue-edit" data-id="'+x.id+'">✏️ Editar</button>'+(x.status==="aguardando"?'<button type="button" class="queue-menu-action queue-call" data-id="'+x.id+'">📣 Chamar</button>':"")+'<button type="button" class="queue-menu-action queue-history" data-id="'+x.id+'">🕘 Histórico</button></div></details>';
       return group+'<tr><td>'+dateBr(x.medical_request_date)+'<br><small>'+esc(x.requested_procedure)+'</small></td><td><strong>'+esc(x.record_number)+'</strong><br>'+esc(x.patient_name)+'</td><td>'+esc(x.phone||"")+'</td><td>'+esc(x.requester_name)+'</td><td><span class="queue-status '+esc(x.status)+'">'+esc(queueStatusNames[x.status]||x.status)+'</span>'+called+'</td><td><strong>'+esc(position)+'</strong></td><td class="queue-actions">'+actions+'</td></tr>';
     }).join("")+'</tbody></table>';
   }
@@ -551,11 +551,6 @@
     };
     try{await api("/api/queue/requests/"+id,{method:"PATCH",body:JSON.stringify(payload)});$("queue-request-edit-dialog").close();toast("Solicitação atualizada.");loadQueueRequests()}catch(err){toast(err.message,true)}
   });
-  document.addEventListener("change",async function(e){
-    if(!e.target.classList.contains("queue-status-change")||!e.target.value)return;
-    try{await api("/api/queue/requests/"+e.target.getAttribute("data-id"),{method:"PATCH",body:JSON.stringify({status:e.target.value})});toast("Status atualizado.");loadQueueRequests()}catch(err){toast(err.message,true)}
-  });
-
   async function loadQueueCatalogPage(){
     try{
       await loadQueueCatalogs();
