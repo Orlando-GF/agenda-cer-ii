@@ -50,7 +50,7 @@
         <div class="nav-section">Fila de espera</div>
         <button data-page="waitlist" class="nav-item nav-subitem"><span class="nav-icon">📋</span><span>Fila de espera</span></button>
         <button data-page="new-queue-request" class="nav-item nav-subitem"><span class="nav-icon">＋</span><span>Nova solicitação</span></button>
-        <button data-page="queue-catalogs" class="nav-item nav-subitem"><span class="nav-icon">🗂️</span><span>Especialidades e solicitantes</span></button>
+        <button data-page="queue-catalogs" class="nav-item nav-subitem"><span class="nav-icon">🗂️</span><span>Cadastros da fila</span></button>
 
         <div class="nav-section admin-only">Sistema</div>
         <button data-page="users" class="nav-item nav-subitem admin-only"><span class="nav-icon">👤</span><span>Usuários</span></button>
@@ -185,14 +185,14 @@
           <label>Especialidade solicitada <select id="queue-specialty" required></select></label>
           <label>Profissional solicitante <select id="queue-requester" required></select></label>
           <label>Data da solicitação médica <input id="queue-medical-date" type="date" required></label>
-          <label class="full">Motivo/procedimento solicitado <input id="queue-procedure" required></label>
+          <label class="full">Motivo/procedimento solicitado <select id="queue-procedure" required></select></label>
           <label class="full">Observação <textarea id="queue-observation" rows="2"></textarea></label>
           <div class="form-actions full"><button class="primary">Adicionar à fila</button></div>
         </form>
       </div>
 
       <div id="page-queue-catalogs" class="page hidden">
-        <div class="page-heading"><div><h2>Especialidades e solicitantes</h2><p>Cadastre as especialidades da fila e os profissionais que podem solicitar atendimento.</p></div></div>
+        <div class="page-heading"><div><h2>Cadastros da fila</h2><p>Cadastre especialidades, profissionais solicitantes e motivos/procedimentos padronizados.</p></div></div>
         <form id="queue-specialty-form" class="card inline-form">
           <label>Especialidade <input id="queue-specialty-name" required></label>
           <button class="primary">Cadastrar especialidade</button>
@@ -204,6 +204,11 @@
           <button class="primary">Cadastrar profissional</button>
         </form>
         <div id="queue-professional-list" class="card table-wrap"></div>
+        <form id="queue-procedure-form" class="card inline-form">
+          <label>Motivo/procedimento <input id="queue-procedure-name" required></label>
+          <button class="primary">Cadastrar procedimento</button>
+        </form>
+        <div id="queue-procedure-list" class="card table-wrap"></div>
       </div>
 
       <div id="page-users" class="page hidden">
@@ -303,7 +308,7 @@
           <option value="cancelado">Cancelado</option>
         </select>
       </label>
-      <label>Motivo/procedimento solicitado <input id="queue-edit-procedure" required></label>
+      <label>Motivo/procedimento solicitado <select id="queue-edit-procedure" required></select></label>
       <label>Observação <textarea id="queue-edit-observation" rows="3"></textarea></label>
       <div class="form-actions"><button type="button" class="secondary" data-close="queue-request-edit-dialog">Cancelar</button><button class="primary">Salvar</button></div>
     </form>
@@ -325,6 +330,15 @@
       <label>Nome do profissional <input id="queue-professional-edit-name" required></label>
       <label>Especialidade do profissional <select id="queue-professional-edit-specialty" required></select></label>
       <div class="form-actions"><button type="button" class="secondary" data-close="queue-professional-edit-dialog">Cancelar</button><button class="primary">Salvar</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="queue-procedure-edit-dialog" class="dialog small-dialog">
+    <form id="queue-procedure-edit-form">
+      <h3>Editar procedimento</h3>
+      <input id="queue-procedure-edit-id" type="hidden">
+      <label>Motivo/procedimento <input id="queue-procedure-edit-name" required></label>
+      <div class="form-actions"><button type="button" class="secondary" data-close="queue-procedure-edit-dialog">Cancelar</button><button class="primary">Salvar</button></div>
     </form>
   </dialog>
 

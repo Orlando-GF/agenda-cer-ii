@@ -1,6 +1,6 @@
 (function(){
   "use strict";
-  var state={user:null,needsSetup:false,professionals:[],queueSpecialties:[],queueProfessionals:[],queueRequests:[],currentSchedule:null,scheduleDirty:false,schedulePage:1,queuePage:1};
+  var state={user:null,needsSetup:false,professionals:[],queueSpecialties:[],queueProfessionals:[],queueProcedures:[],queueRequests:[],currentSchedule:null,scheduleDirty:false,schedulePage:1,queuePage:1};
   var $=function(id){return document.getElementById(id)};
   var esc=function(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]})};
   function titleCaseWord(word){
@@ -364,7 +364,7 @@
     if(!rows.length)return"<p>Nenhum cadastro ainda.</p>";
     return'<table><thead><tr><th>Nome</th><th>Especialidade</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.specialty)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action edit-catalog" data-type="'+type+'" data-id="'+x.id+'">Editar</button><button class="table-action toggle-catalog" data-type="'+type+'" data-id="'+x.id+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
   }
-  ["professional-name","professional-specialty","user-name","catalog-edit-name","catalog-edit-specialty"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeNameInput(el)})});
+  ["professional-name","professional-specialty","user-name","catalog-edit-name","catalog-edit-specialty","queue-procedure-name","queue-procedure-edit-name"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeNameInput(el)})});
   $("professional-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("professional-name"));normalizeNameInput($("professional-specialty"));try{await api("/api/professionals",{method:"POST",body:JSON.stringify({name:$("professional-name").value,specialty:$("professional-specialty").value})});this.reset();toast("Profissional cadastrado.");loadProfessionals(true)}catch(err){toast(err.message,true)}});
   document.addEventListener("click",async function(e){
     if(!e.target.classList.contains("toggle-catalog"))return;
@@ -397,12 +397,16 @@
   async function loadQueueCatalogs(){
     state.queueSpecialties=await api("/api/queue/specialties");
     state.queueProfessionals=await api("/api/queue/professionals");
+    state.queueProcedures=await api("/api/queue/procedures");
   }
   function activeQueueSpecialtyOptions(selected){
     return '<option value="">Selecione...</option>'+state.queueSpecialties.filter(function(x){return x.active||String(x.id)===String(selected||"")}).map(function(x){return'<option value="'+x.id+'" '+(String(x.id)===String(selected||"")?"selected":"")+'>'+esc(x.name)+'</option>'}).join("");
   }
   function activeQueueProfessionalOptions(selected){
     return '<option value="">Selecione...</option>'+state.queueProfessionals.filter(function(x){return x.active||String(x.id)===String(selected||"")}).map(function(x){return'<option value="'+x.id+'" '+(String(x.id)===String(selected||"")?"selected":"")+'>'+esc(x.name)+' — '+esc(x.specialty_name)+'</option>'}).join("");
+  }
+  function activeQueueProcedureOptions(selected){
+    return '<option value="">Selecione...</option>'+state.queueProcedures.filter(function(x){return x.active||String(x.id)===String(selected||"")}).map(function(x){return'<option value="'+x.id+'" '+(String(x.id)===String(selected||"")?"selected":"")+'>'+esc(x.name)+'</option>'}).join("");
   }
   async function loadWaitlistPage(){
     try{
@@ -416,6 +420,7 @@
       await loadQueueCatalogs();
       if(!$("queue-medical-date").value)$("queue-medical-date").value=today();
       $("queue-specialty").innerHTML=activeQueueSpecialtyOptions();
+      $("queue-procedure").innerHTML=activeQueueProcedureOptions();
       updateQueueRequesterOptions();
     }catch(e){toast(e.message,true)}
   }
@@ -430,7 +435,7 @@
       phone:phoneMask($("queue-phone").value),
       specialty_id:$("queue-specialty").value,
       requester_id:$("queue-requester").value,
-      requested_procedure:upperCaseText($("queue-procedure").value),
+      procedure_id:$("queue-procedure").value,
       medical_request_date:$("queue-medical-date").value,
       observation:upperCaseText($("queue-observation").value)
     };
@@ -444,7 +449,7 @@
   });
   $("queue-phone").addEventListener("input",function(e){e.target.value=phoneMask(e.target.value)});
   $("queue-phone").addEventListener("blur",function(e){e.target.value=phoneMask(e.target.value)});
-  ["queue-record","queue-patient","queue-procedure","queue-observation"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeSlotInput(el)})});
+  ["queue-record","queue-patient","queue-observation"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeSlotInput(el)})});
   async function loadQueueRequests(){
     try{
       var params=new URLSearchParams({page:String(state.queuePage),specialty:$("queue-filter-specialty").value,status:$("queue-filter-status").value,q:$("queue-search").value.trim()});
@@ -462,7 +467,7 @@
       var group=lastSpecialty!==x.specialty_name?'<tr class="queue-group"><td colspan="7">'+esc(x.specialty_name)+'</td></tr>':"";
       lastSpecialty=x.specialty_name;
       var actions='<details class="queue-action-menu"><summary title="Ações" aria-label="Ações">⋯</summary><div><button type="button" class="queue-menu-action queue-edit" data-id="'+x.id+'">✏️ Editar</button>'+(x.status==="aguardando"?'<button type="button" class="queue-menu-action queue-call" data-id="'+x.id+'">📣 Chamar</button>':"")+'<button type="button" class="queue-menu-action queue-history" data-id="'+x.id+'">🕘 Histórico</button></div></details>';
-      return group+'<tr><td>'+dateBr(x.medical_request_date)+'<br><small>'+esc(x.requested_procedure)+'</small></td><td><strong>'+esc(x.record_number)+'</strong><br>'+esc(x.patient_name)+'</td><td>'+esc(x.phone||"")+'</td><td>'+esc(x.requester_name)+'</td><td><span class="queue-status '+esc(x.status)+'">'+esc(queueStatusNames[x.status]||x.status)+'</span>'+called+'</td><td><strong>'+esc(position)+'</strong></td><td class="queue-actions">'+actions+'</td></tr>';
+      return group+'<tr><td>'+dateBr(x.medical_request_date)+'<br><small>'+esc(x.procedure_name||x.requested_procedure)+'</small></td><td><strong>'+esc(x.record_number)+'</strong><br>'+esc(x.patient_name)+'</td><td>'+esc(x.phone||"")+'</td><td>'+esc(x.requester_name)+'</td><td><span class="queue-status '+esc(x.status)+'">'+esc(queueStatusNames[x.status]||x.status)+'</span>'+called+'</td><td><strong>'+esc(position)+'</strong></td><td class="queue-actions">'+actions+'</td></tr>';
     }).join("")+'</tbody></table>';
   }
   function dateTimeBr(value){
@@ -527,14 +532,14 @@
     $("queue-edit-phone").value=phoneMask(x.phone||"");
     $("queue-edit-specialty").innerHTML=activeQueueSpecialtyOptions(x.specialty_id);
     $("queue-edit-requester").innerHTML=activeQueueProfessionalOptions(x.requester_id);
+    $("queue-edit-procedure").innerHTML=activeQueueProcedureOptions(x.procedure_id);
     $("queue-edit-medical-date").value=x.medical_request_date||"";
     $("queue-edit-status").value=x.status||"aguardando";
-    $("queue-edit-procedure").value=x.requested_procedure||"";
     $("queue-edit-observation").value=x.observation||"";
     $("queue-request-edit-dialog").showModal();
   }
   $("queue-edit-phone").addEventListener("input",function(e){e.target.value=phoneMask(e.target.value)});
-  ["queue-edit-record","queue-edit-patient","queue-edit-procedure","queue-edit-observation"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeSlotInput(el)})});
+  ["queue-edit-record","queue-edit-patient","queue-edit-observation"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeSlotInput(el)})});
   $("queue-request-edit-form").addEventListener("submit",async function(e){
     e.preventDefault();
     var id=$("queue-edit-id").value;
@@ -546,7 +551,7 @@
       requester_id:$("queue-edit-requester").value,
       medical_request_date:$("queue-edit-medical-date").value,
       status:$("queue-edit-status").value,
-      requested_procedure:upperCaseText($("queue-edit-procedure").value),
+      procedure_id:$("queue-edit-procedure").value,
       observation:upperCaseText($("queue-edit-observation").value)
     };
     try{await api("/api/queue/requests/"+id,{method:"PATCH",body:JSON.stringify(payload)});$("queue-request-edit-dialog").close();toast("Solicitação atualizada.");loadQueueRequests()}catch(err){toast(err.message,true)}
@@ -557,6 +562,7 @@
       $("queue-professional-specialty").innerHTML=activeQueueSpecialtyOptions();
       $("queue-specialty-list").innerHTML=renderQueueSpecialties();
       $("queue-professional-list").innerHTML=renderQueueProfessionals();
+      $("queue-procedure-list").innerHTML=renderQueueProcedures();
     }catch(e){toast(e.message,true)}
   }
   function renderQueueSpecialties(){
@@ -567,8 +573,13 @@
     if(!state.queueProfessionals.length)return"<p>Nenhum profissional cadastrado.</p>";
     return '<table><thead><tr><th>Nome</th><th>Especialidade</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+state.queueProfessionals.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.specialty_name)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action edit-queue-professional" data-id="'+x.id+'">Editar</button><button class="table-action toggle-queue-professional" data-id="'+x.id+'" data-name="'+esc(x.name)+'" data-specialty="'+x.specialty_id+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
   }
+  function renderQueueProcedures(){
+    if(!state.queueProcedures.length)return"<p>Nenhum procedimento cadastrado.</p>";
+    return '<table><thead><tr><th>Motivo/procedimento</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+state.queueProcedures.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action edit-queue-procedure" data-id="'+x.id+'">Editar</button><button class="table-action toggle-queue-procedure" data-id="'+x.id+'" data-name="'+esc(x.name)+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
+  }
   $("queue-specialty-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("queue-specialty-name"));try{await api("/api/queue/specialties",{method:"POST",body:JSON.stringify({name:$("queue-specialty-name").value})});this.reset();toast("Especialidade cadastrada.");loadQueueCatalogPage()}catch(err){toast(err.message,true)}});
   $("queue-professional-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("queue-professional-name"));try{await api("/api/queue/professionals",{method:"POST",body:JSON.stringify({name:$("queue-professional-name").value,specialty_id:$("queue-professional-specialty").value})});this.reset();toast("Profissional cadastrado.");loadQueueCatalogPage()}catch(err){toast(err.message,true)}});
+  $("queue-procedure-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("queue-procedure-name"));try{await api("/api/queue/procedures",{method:"POST",body:JSON.stringify({name:$("queue-procedure-name").value})});this.reset();toast("Procedimento cadastrado.");loadQueueCatalogPage()}catch(err){toast(err.message,true)}});
   document.addEventListener("click",async function(e){
     if(e.target.classList.contains("edit-queue-specialty")){
       var specialty=state.queueSpecialties.find(function(x){return String(x.id)===String(e.target.getAttribute("data-id"))});
@@ -585,11 +596,21 @@
       $("queue-professional-edit-specialty").innerHTML=activeQueueSpecialtyOptions(professional.specialty_id);
       $("queue-professional-edit-dialog").showModal();
     }
+    if(e.target.classList.contains("edit-queue-procedure")){
+      var procedure=state.queueProcedures.find(function(x){return String(x.id)===String(e.target.getAttribute("data-id"))});
+      if(!procedure)return;
+      $("queue-procedure-edit-id").value=procedure.id;
+      $("queue-procedure-edit-name").value=procedure.name;
+      $("queue-procedure-edit-dialog").showModal();
+    }
     if(e.target.classList.contains("toggle-queue-specialty")){
       try{await api("/api/queue/specialties/"+e.target.getAttribute("data-id"),{method:"PATCH",body:JSON.stringify({name:e.target.getAttribute("data-name"),active:e.target.getAttribute("data-active")!=="1"})});toast("Especialidade atualizada.");loadQueueCatalogPage()}catch(err){toast(err.message,true)}
     }
     if(e.target.classList.contains("toggle-queue-professional")){
       try{await api("/api/queue/professionals/"+e.target.getAttribute("data-id"),{method:"PATCH",body:JSON.stringify({name:e.target.getAttribute("data-name"),specialty_id:e.target.getAttribute("data-specialty"),active:e.target.getAttribute("data-active")!=="1"})});toast("Profissional atualizado.");loadQueueCatalogPage()}catch(err){toast(err.message,true)}
+    }
+    if(e.target.classList.contains("toggle-queue-procedure")){
+      try{await api("/api/queue/procedures/"+e.target.getAttribute("data-id"),{method:"PATCH",body:JSON.stringify({name:e.target.getAttribute("data-name"),active:e.target.getAttribute("data-active")!=="1"})});toast("Procedimento atualizado.");loadQueueCatalogPage()}catch(err){toast(err.message,true)}
     }
   });
   $("queue-specialty-edit-form").addEventListener("submit",async function(e){
@@ -605,6 +626,13 @@
     if(!x)return;
     normalizeNameInput($("queue-professional-edit-name"));
     try{await api("/api/queue/professionals/"+id,{method:"PATCH",body:JSON.stringify({name:$("queue-professional-edit-name").value,specialty_id:$("queue-professional-edit-specialty").value,active:!!x.active})});$("queue-professional-edit-dialog").close();toast("Profissional atualizado.");loadQueueCatalogPage()}catch(err){toast(err.message,true)}
+  });
+  $("queue-procedure-edit-form").addEventListener("submit",async function(e){
+    e.preventDefault();
+    var id=$("queue-procedure-edit-id").value,x=state.queueProcedures.find(function(row){return String(row.id)===String(id)});
+    if(!x)return;
+    normalizeNameInput($("queue-procedure-edit-name"));
+    try{await api("/api/queue/procedures/"+id,{method:"PATCH",body:JSON.stringify({name:$("queue-procedure-edit-name").value,active:!!x.active})});$("queue-procedure-edit-dialog").close();toast("Procedimento atualizado.");loadQueueCatalogPage()}catch(err){toast(err.message,true)}
   });
 
   async function loadUsers(){

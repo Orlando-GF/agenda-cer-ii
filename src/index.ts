@@ -400,6 +400,12 @@ async function queueMovement(env: Env, user: User, requestId: number, action: st
   ).bind(requestId, user.id, fromStatus, toStatus, action, notes).run();
 }
 
+async function queueProcedureName(env: Env, id: number): Promise<string> {
+  if (!id) return "";
+  const found = await env.DB.prepare("SELECT name FROM queue_procedures WHERE id = ?").bind(id).first<{ name: string }>();
+  return found?.name ?? "";
+}
+
 async function listQueueRequests(env: Env, url: URL): Promise<Response> {
   const specialty = Number(url.searchParams.get("specialty")) || 0;
   const status = clean(url.searchParams.get("status"), 30) || "open";
@@ -424,7 +430,7 @@ async function listQueueRequests(env: Env, url: URL): Promise<Response> {
     params.push(`%${q}%`, `%${q}%`);
   }
   const result = await env.DB.prepare(
-    `SELECT r.*, s.name specialty_name, p.name requester_name,
+    `SELECT r.*, s.name specialty_name, p.name requester_name, qp.name procedure_name,
             CASE
               WHEN r.status IN ('aguardando', 'chamado') THEN (
                 SELECT COUNT(*)
@@ -442,6 +448,7 @@ async function listQueueRequests(env: Env, url: URL): Promise<Response> {
      FROM queue_requests r
      JOIN queue_specialties s ON s.id = r.specialty_id
      JOIN queue_professionals p ON p.id = r.requester_id
+     LEFT JOIN queue_procedures qp ON qp.id = r.procedure_id
      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
      ORDER BY lower(s.name), r.medical_request_date ASC, r.entered_at ASC, r.id ASC
      LIMIT ? OFFSET ?`,
@@ -586,6 +593,37 @@ async function api(request: Request, env: Env): Promise<Response> {
     return json({ ok: true });
   }
 
+  if (path === "/api/queue/procedures" && request.method === "GET") {
+    return json((await env.DB.prepare("SELECT * FROM queue_procedures ORDER BY active DESC, lower(name)").all()).results);
+  }
+  if (path === "/api/queue/procedures" && request.method === "POST") {
+    const data = await body(request);
+    const name = titleCaseText(data.name, 160);
+    if (!name) return error("Informe o motivo/procedimento.");
+    try {
+      const result = await env.DB.prepare("INSERT INTO queue_procedures (name) VALUES (?)").bind(name).run();
+      await audit(env, user, "queue_procedure.create", "queue_procedure", Number(result.meta.last_row_id), { name });
+      return json({ id: result.meta.last_row_id }, 201);
+    } catch {
+      return error("Esse motivo/procedimento já existe.", 409);
+    }
+  }
+  const queueProcedureId = path.match(/^\/api\/queue\/procedures\/(\d+)$/);
+  if (queueProcedureId && request.method === "PATCH") {
+    const data = await body(request);
+    const id = Number(queueProcedureId[1]);
+    const name = titleCaseText(data.name, 160);
+    if (!name) return error("Informe o motivo/procedimento.");
+    try {
+      await env.DB.prepare("UPDATE queue_procedures SET name = ?, active = ? WHERE id = ?").bind(name, data.active ? 1 : 0, id).run();
+      await env.DB.prepare("UPDATE queue_requests SET requested_procedure = ? WHERE procedure_id = ?").bind(name, id).run();
+      await audit(env, user, "queue_procedure.update", "queue_procedure", id, { name, active: !!data.active });
+      return json({ ok: true });
+    } catch {
+      return error("Esse motivo/procedimento já existe.", 409);
+    }
+  }
+
   if (path === "/api/queue/requests" && request.method === "GET") return listQueueRequests(env, url);
   if (path === "/api/queue/requests" && request.method === "POST") {
     const data = await body(request);
@@ -594,7 +632,8 @@ async function api(request: Request, env: Env): Promise<Response> {
     const phone = phoneMask(data.phone);
     const specialtyId = Number(data.specialty_id);
     const requesterId = Number(data.requester_id);
-    const procedure = upperCaseText(data.requested_procedure, 300);
+    const procedureId = Number(data.procedure_id);
+    const procedure = await queueProcedureName(env, procedureId);
     const medicalDate = clean(data.medical_request_date, 10);
     const observation = upperCaseText(data.observation, 500);
     if (!record || !patientName || !specialtyId || !requesterId || !procedure || !medicalDate) {
@@ -606,9 +645,9 @@ async function api(request: Request, env: Env): Promise<Response> {
     ).bind(record, specialtyId).first<{ total: number }>();
     const result = await env.DB.prepare(
       `INSERT INTO queue_requests
-       (record_number, patient_name, phone, specialty_id, requester_id, requested_procedure, medical_request_date, observation, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(record, patientName, phone, specialtyId, requesterId, procedure, medicalDate, observation, user.id).run();
+       (record_number, patient_name, phone, specialty_id, requester_id, procedure_id, requested_procedure, medical_request_date, observation, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(record, patientName, phone, specialtyId, requesterId, procedureId, procedure, medicalDate, observation, user.id).run();
     const id = Number(result.meta.last_row_id);
     await queueMovement(env, user, id, "created", null, "aguardando", "Solicitação incluída na fila.");
     await audit(env, user, "queue_request.create", "queue_request", id, { record, patientName, specialtyId });
@@ -626,7 +665,8 @@ async function api(request: Request, env: Env): Promise<Response> {
     const phone = data.phone === undefined ? String(current.phone ?? "") : phoneMask(data.phone);
     const specialtyId = data.specialty_id === undefined ? Number(current.specialty_id) : Number(data.specialty_id);
     const requesterId = data.requester_id === undefined ? Number(current.requester_id) : Number(data.requester_id);
-    const procedure = data.requested_procedure === undefined ? String(current.requested_procedure) : upperCaseText(data.requested_procedure, 300);
+    const procedureId = data.procedure_id === undefined ? Number(current.procedure_id ?? 0) : Number(data.procedure_id);
+    const procedure = data.procedure_id === undefined ? String(current.requested_procedure) : await queueProcedureName(env, procedureId);
     const medicalDate = data.medical_request_date === undefined ? String(current.medical_request_date) : clean(data.medical_request_date, 10);
     const observation = data.observation === undefined ? String(current.observation ?? "") : upperCaseText(data.observation, 500);
     if (!record || !patientName || !specialtyId || !requesterId || !procedure || !medicalDate) return error("Preencha os campos obrigatórios.");
@@ -634,10 +674,10 @@ async function api(request: Request, env: Env): Promise<Response> {
     const calledParam = calledAt === "?" ? [current.called_at ?? null] : [];
     await env.DB.prepare(
       `UPDATE queue_requests
-       SET record_number = ?, patient_name = ?, phone = ?, specialty_id = ?, requester_id = ?, requested_procedure = ?,
+       SET record_number = ?, patient_name = ?, phone = ?, specialty_id = ?, requester_id = ?, procedure_id = ?, requested_procedure = ?,
            medical_request_date = ?, status = ?, called_at = ${calledAt}, observation = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-    ).bind(record, patientName, phone, specialtyId, requesterId, procedure, medicalDate, status, ...calledParam, observation, id).run();
+    ).bind(record, patientName, phone, specialtyId, requesterId, procedureId || null, procedure, medicalDate, status, ...calledParam, observation, id).run();
     if (status !== current.status) {
       await queueMovement(env, user, id, status === "chamado" ? "called" : "status", current.status, status, clean(data.notes, 300));
     } else {
