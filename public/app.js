@@ -39,7 +39,6 @@
   };
   var periodLabel=function(period,time){return'<span class="period-badge '+esc(period)+'">'+esc(periodName[period]||period)+(time?" • "+esc(time):"")+'</span>'};
   var queueStatusNames={aguardando:"Aguardando",chamado:"Chamado",atendido:"Atendido",nao_compareceu:"Não compareceu",desistiu:"Desistiu",cancelado:"Cancelado"};
-  var queueOpenStatuses={aguardando:true,chamado:true};
   function specialtyColorClass(name){
     var text=String(name||""),sum=0;
     for(var i=0;i<text.length;i++)sum+=text.charCodeAt(i);
@@ -363,17 +362,17 @@
     }catch(err){toast(err.message,true)}
   });
   async function loadProfessionals(render){
-    try{state.professionals=await api("/api/professionals");if(render)$("professional-list").innerHTML=tableCatalog(state.professionals,"professional")}catch(e){toast(e.message,true)}
+    try{state.professionals=await api("/api/professionals");if(render)$("professional-list").innerHTML=tableCatalog(state.professionals)}catch(e){toast(e.message,true)}
   }
-  function tableCatalog(rows,type){
+  function tableCatalog(rows){
     if(!rows.length)return"<p>Nenhum cadastro ainda.</p>";
-    return'<table><thead><tr><th>Nome</th><th>Especialidade</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.specialty)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action edit-catalog" data-type="'+type+'" data-id="'+x.id+'">Editar</button><button class="table-action toggle-catalog" data-type="'+type+'" data-id="'+x.id+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
+    return'<table><thead><tr><th>Nome</th><th>Especialidade</th><th>Situação</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.specialty)+'</td><td><span class="status '+(x.active?"on":"off")+'">'+(x.active?"Ativo":"Inativo")+'</span></td><td><button class="table-action edit-catalog" data-id="'+x.id+'">Editar</button><button class="table-action toggle-catalog" data-id="'+x.id+'" data-active="'+x.active+'">'+(x.active?"Desativar":"Ativar")+'</button></td></tr>'}).join("")+'</tbody></table>';
   }
   ["professional-name","professional-specialty","user-name","catalog-edit-name","catalog-edit-specialty","queue-procedure-name","queue-procedure-edit-name"].forEach(function(id){var el=$(id);if(el)el.addEventListener("blur",function(){normalizeNameInput(el)})});
   $("professional-form").addEventListener("submit",async function(e){e.preventDefault();normalizeNameInput($("professional-name"));normalizeNameInput($("professional-specialty"));try{await api("/api/professionals",{method:"POST",body:JSON.stringify({name:$("professional-name").value,specialty:$("professional-specialty").value})});this.reset();toast("Profissional cadastrado.");loadProfessionals(true)}catch(err){toast(err.message,true)}});
   document.addEventListener("click",async function(e){
     if(!e.target.classList.contains("toggle-catalog"))return;
-    var type=e.target.getAttribute("data-type"),id=e.target.getAttribute("data-id"),active=e.target.getAttribute("data-active")==="1",x=state.professionals.find(function(r){return String(r.id)===id});
+    var id=e.target.getAttribute("data-id"),active=e.target.getAttribute("data-active")==="1",x=state.professionals.find(function(r){return String(r.id)===id});
     if(!x)return;var payload={name:x.name,specialty:x.specialty,active:!active};
     try{await api("/api/professionals/"+id,{method:"PATCH",body:JSON.stringify(payload)});toast(active?"Cadastro desativado.":"Cadastro ativado.");loadProfessionals(true)}catch(err){toast(err.message,true)}
   });
