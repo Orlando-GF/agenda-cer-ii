@@ -651,6 +651,15 @@ async function api(request: Request, env: Env): Promise<Response> {
     const name = titleCaseText(data.name, 160);
     const specialtyId = Number(data.specialty_id);
     if (!name || !specialtyId) return error("Informe o motivo/procedimento e a especialidade vinculada.");
+    const incompatibleUse = await env.DB.prepare(
+      `SELECT COUNT(*) total
+       FROM queue_request_procedures qrp
+       JOIN queue_requests r ON r.id = qrp.request_id
+       WHERE qrp.procedure_id = ? AND r.specialty_id <> ?`,
+    ).bind(id, specialtyId).first<{ total: number }>();
+    if (Number(incompatibleUse?.total ?? 0) > 0) {
+      return error("Este procedimento já foi usado em solicitações de outra especialidade. Crie um novo cadastro para essa especialidade.", 409);
+    }
     try {
       await env.DB.prepare("UPDATE queue_procedures SET name = ?, specialty_id = ?, active = ? WHERE id = ?").bind(name, specialtyId, data.active ? 1 : 0, id).run();
       await env.DB.prepare("UPDATE queue_requests SET requested_procedure = ? WHERE procedure_id = ?").bind(name, id).run();

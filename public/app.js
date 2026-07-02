@@ -115,7 +115,6 @@
     var menu=$("schedule-menu");
     if(menu&&!menu.classList.contains("hidden")&&!e.target.closest("#schedule-actions"))menu.classList.add("hidden");
   });
-  document.querySelectorAll(".nav-item").forEach(function(el){el.addEventListener("click",function(){go(el.getAttribute("data-page"))})});
   $("filter-button").addEventListener("click",function(){state.schedulePage=1;loadSchedules()});
   ["filter-professional","filter-kind","filter-period","filter-status"].forEach(function(id){$(id).addEventListener("change",function(){state.schedulePage=1;loadSchedules()})});
   ["queue-filter-specialty","queue-filter-status"].forEach(function(id){$(id).addEventListener("change",function(){state.queuePage=1;loadQueueRequests()})});
