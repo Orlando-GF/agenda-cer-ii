@@ -411,7 +411,7 @@ async function listQueueRequests(env: Env, url: URL): Promise<Response> {
   const status = clean(url.searchParams.get("status"), 30) || "open";
   const q = clean(url.searchParams.get("q"), 100);
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
-  const limit = 80;
+  const limit = 25;
   const offset = (page - 1) * limit;
   const where: string[] = [];
   const params: unknown[] = [];

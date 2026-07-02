@@ -468,14 +468,11 @@
     }catch(e){toast(e.message,true)}
   }
   function renderQueueTable(rows){
-    var lastSpecialty="";
-    return '<table class="queue-table"><thead><tr><th>Solicitação</th><th>Paciente</th><th>Telefone</th><th>Profissional</th><th>Status</th><th>Posição</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){
+    return '<table class="queue-table"><thead><tr><th>Especialidade</th><th>Solicitação</th><th>Paciente</th><th>Telefone</th><th>Profissional</th><th>Status</th><th>Posição</th><th>Ação</th></tr></thead><tbody>'+rows.map(function(x){
       var called=x.called_at?'<br><small>Chamado: '+dateTimeBr(x.called_at)+'</small>':"";
       var position=x.queue_position?x.queue_position+"º da fila":"Histórico";
-      var group=lastSpecialty!==x.specialty_name?'<tr class="queue-group"><td colspan="7">'+esc(x.specialty_name)+'</td></tr>':"";
-      lastSpecialty=x.specialty_name;
       var actions='<details class="queue-action-menu"><summary title="Ações" aria-label="Ações">⋯</summary><div><button type="button" class="queue-menu-action queue-edit" data-id="'+x.id+'">✏️ Editar</button>'+(x.status==="aguardando"?'<button type="button" class="queue-menu-action queue-call" data-id="'+x.id+'">📣 Chamar</button>':"")+'<button type="button" class="queue-menu-action queue-history" data-id="'+x.id+'">🕘 Histórico</button></div></details>';
-      return group+'<tr><td>'+dateBr(x.medical_request_date)+'<br><small>'+esc(x.procedure_name||x.requested_procedure)+'</small></td><td><strong>'+esc(x.record_number)+'</strong><br>'+esc(x.patient_name)+'</td><td>'+esc(x.phone||"")+'</td><td>'+esc(x.requester_name)+'</td><td><span class="queue-status '+esc(x.status)+'">'+esc(queueStatusNames[x.status]||x.status)+'</span>'+called+'</td><td><strong>'+esc(position)+'</strong></td><td class="queue-actions">'+actions+'</td></tr>';
+      return '<tr><td><span class="queue-specialty-badge">'+esc(x.specialty_name)+'</span></td><td>'+dateBr(x.medical_request_date)+'<br><small>'+esc(x.procedure_name||x.requested_procedure)+'</small></td><td><strong>'+esc(x.record_number)+'</strong><br>'+esc(x.patient_name)+'</td><td>'+esc(x.phone||"")+'</td><td>'+esc(x.requester_name)+'</td><td><span class="queue-status '+esc(x.status)+'">'+esc(queueStatusNames[x.status]||x.status)+'</span>'+called+'</td><td><strong>'+esc(position)+'</strong></td><td class="queue-actions">'+actions+'</td></tr>';
     }).join("")+'</tbody></table>';
   }
   function dateTimeBr(value){
@@ -510,7 +507,7 @@
     var el=$("queue-pagination"),show=data.hasMore||Number(data.page)>1;
     el.classList.toggle("hidden",!show);
     if(!show){el.innerHTML="";return}
-    el.innerHTML='<button class="secondary" id="queue-prev" '+(Number(data.page)<=1?"disabled":"")+'>Anterior</button><span>Página '+data.page+'</span><button class="secondary" id="queue-next" '+(!data.hasMore?"disabled":"")+'>Próxima</button>';
+    el.innerHTML='<button class="secondary" id="queue-prev" '+(Number(data.page)<=1?"disabled":"")+'>Anterior</button><span>Página '+data.page+' · 25 por página</span><button class="secondary" id="queue-next" '+(!data.hasMore?"disabled":"")+'>Próxima</button>';
     $("queue-prev").onclick=function(){if(state.queuePage>1){state.queuePage--;loadQueueRequests()}};
     $("queue-next").onclick=function(){if(data.hasMore){state.queuePage++;loadQueueRequests()}};
   }
