@@ -275,6 +275,51 @@
     </div>
   </dialog>
 
+  <dialog id="queue-request-edit-dialog" class="dialog small-dialog">
+    <form id="queue-request-edit-form">
+      <h3>Editar solicitação</h3>
+      <input id="queue-edit-id" type="hidden">
+      <label>Número do prontuário <input id="queue-edit-record" required></label>
+      <label>Nome do paciente <input id="queue-edit-patient" required></label>
+      <label>Telefone/WhatsApp <input id="queue-edit-phone" inputmode="numeric" placeholder="(00) 00000-0000" maxlength="15"></label>
+      <label>Especialidade solicitada <select id="queue-edit-specialty" required></select></label>
+      <label>Profissional solicitante <select id="queue-edit-requester" required></select></label>
+      <label>Data da solicitação médica <input id="queue-edit-medical-date" type="date" required></label>
+      <label>Status
+        <select id="queue-edit-status">
+          <option value="aguardando">Aguardando</option>
+          <option value="chamado">Chamado</option>
+          <option value="atendido">Atendido</option>
+          <option value="nao_compareceu">Não compareceu</option>
+          <option value="desistiu">Desistiu</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </label>
+      <label>Motivo/procedimento solicitado <input id="queue-edit-procedure" required></label>
+      <label>Observação <textarea id="queue-edit-observation" rows="3"></textarea></label>
+      <div class="form-actions"><button type="button" class="secondary" data-close="queue-request-edit-dialog">Cancelar</button><button class="primary">Salvar</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="queue-specialty-edit-dialog" class="dialog small-dialog">
+    <form id="queue-specialty-edit-form">
+      <h3>Editar especialidade</h3>
+      <input id="queue-specialty-edit-id" type="hidden">
+      <label>Especialidade <input id="queue-specialty-edit-name" required></label>
+      <div class="form-actions"><button type="button" class="secondary" data-close="queue-specialty-edit-dialog">Cancelar</button><button class="primary">Salvar</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="queue-professional-edit-dialog" class="dialog small-dialog">
+    <form id="queue-professional-edit-form">
+      <h3>Editar profissional</h3>
+      <input id="queue-professional-edit-id" type="hidden">
+      <label>Nome do profissional <input id="queue-professional-edit-name" required></label>
+      <label>Especialidade do profissional <select id="queue-professional-edit-specialty" required></select></label>
+      <div class="form-actions"><button type="button" class="secondary" data-close="queue-professional-edit-dialog">Cancelar</button><button class="primary">Salvar</button></div>
+    </form>
+  </dialog>
+
   <dialog id="confirm-dialog" class="dialog small-dialog">
     <form method="dialog">
       <h3 id="confirm-title">Confirmar ação</h3>
